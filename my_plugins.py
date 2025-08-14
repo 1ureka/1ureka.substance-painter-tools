@@ -1,5 +1,5 @@
-from PySide2 import QtGui, QtWidgets
-import substance_painter as sp
+from PySide2 import QtGui, QtWidgets  # type: ignore
+import substance_painter as sp  # type: ignore
 
 import importlib
 import ui.radial_menu as radial_menu

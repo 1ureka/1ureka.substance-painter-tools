@@ -1,4 +1,4 @@
-import substance_painter as sp
+import substance_painter as sp  # type: ignore
 import random
 
 

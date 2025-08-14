@@ -1,5 +1,5 @@
-import substance_painter as sp
-from PySide2 import QtWidgets
+import substance_painter as sp  # type: ignore
+from PySide2 import QtWidgets  # type: ignore
 
 # from my_plugins import log_info
 from typing import Optional
