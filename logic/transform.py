@@ -130,6 +130,8 @@ def process_layer_recursive(layer, layer_path: str = ""):
     full_path = f"{layer_path} / {layer_name}" if layer_path else layer_name
 
     if layer.get_type() == sp.layerstack.NodeType.GroupLayer:
+        if not layer.is_visible():
+            return log_info(f"❌ {full_path} 是不可見的 Group Layer，跳過處理其所有子圖層")
         for sub_layer in list(layer.sub_layers()):
             process_layer_recursive(sub_layer, full_path)
         process_layer_effects(layer, full_path)
