@@ -86,21 +86,16 @@ def is_source_scalable(layer, channel_name: Optional[str] = None) -> tuple[bool,
 # -------------------------------------------------------------------------
 
 
-
 def process_layer(layer, name: str) -> None:
     # 檢查圖層類型是否為 FillLayer 或 FillEffect
-    nodeTypes = sp.layerstack.NodeType
-    types = [nodeTypes.FillLayer, nodeTypes.FillEffect]
+    types = [sp.layerstack.NodeType.FillLayer, sp.layerstack.NodeType.FillEffect]
     if layer.get_type() not in types:
         return log_info(f"❌ {name} 不是 FillLayer 或 FillEffect，跳過處理")
 
     # 檢查圖層的 projection mode 是否為 UV 或 Triplanar
-    modeTypes = sp.layerstack.ProjectionMode
-    modes = [modeTypes.UV, modeTypes.Triplanar]
+    modes = [sp.layerstack.ProjectionMode.UV, sp.layerstack.ProjectionMode.Triplanar]
     if layer.get_projection_mode() not in modes:
         return log_info(f"❌ {name} 不是使用 UV 或 Triplanar，跳過處理")
-
-    # --- 開始自身做處理 ---
 
     # split source
     if is_split_layer(layer):
@@ -119,8 +114,8 @@ def process_layer(layer, name: str) -> None:
         else:
             log_info(f"❌ {name} 是不可縮放的 Single Layer（{reason}），跳過處理")
 
-    # --- 開始對自身特效或遮罩處理 ---
 
+def process_layer_effects(layer, name: str) -> None:
     if hasattr(layer, "content_effects") and layer.content_effects():
         for effect in layer.content_effects():
             process_layer(effect, f"{name} / ContentEffects / {effect.get_name()}")
@@ -134,12 +129,13 @@ def process_layer_recursive(layer, layer_path: str = ""):
     layer_name = layer.get_name()
     full_path = f"{layer_path} / {layer_name}" if layer_path else layer_name
 
-    # 如果是 Group Layer，遞迴處理子圖層
     if layer.get_type() == sp.layerstack.NodeType.GroupLayer:
         for sub_layer in list(layer.sub_layers()):
             process_layer_recursive(sub_layer, full_path)
-
-    process_layer(layer, full_path)
+        process_layer_effects(layer, full_path)
+    else:
+        process_layer(layer, full_path)
+        process_layer_effects(layer, full_path)
 
 
 # -------------------------------------------------------------------------
