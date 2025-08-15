@@ -38,31 +38,91 @@ class Dialog(QtWidgets.QDialog):
     def create_top_options(self, parent_layout):
         """建立頂部選項區域"""
         top_widget = QtWidgets.QWidget()
-        top_layout = QtWidgets.QHBoxLayout(top_widget)
+        top_layout = QtWidgets.QVBoxLayout(top_widget)
 
-        # 縮放倍數輸入
-        top_layout.addWidget(QtWidgets.QLabel("縮放倍數:"))
+        # 創建主要選項的水平佈局
+        main_options_layout = QtWidgets.QHBoxLayout()
+
+        # 縮放區域
+        scale_group = QtWidgets.QGroupBox("縮放倍數")
+        scale_layout = QtWidgets.QVBoxLayout(scale_group)
+
+        # 縮放輸入欄
+        scale_input_layout = QtWidgets.QHBoxLayout()
         self.scale_spinbox = QtWidgets.QDoubleSpinBox()
         self.scale_spinbox.setRange(0.01, 100.0)
         self.scale_spinbox.setDecimals(2)
         self.scale_spinbox.setValue(self.scale)
         self.scale_spinbox.valueChanged.connect(self.on_scale_changed)
-        top_layout.addWidget(self.scale_spinbox)
+        scale_input_layout.addWidget(self.scale_spinbox)
+        scale_input_layout.addStretch()
+        scale_layout.addLayout(scale_input_layout)
 
-        # 旋轉度數(離散 -180, -90, 0, 90, 180)
-        top_layout.addWidget(QtWidgets.QLabel("旋轉度數:"))
+        # 縮放快速選取按鈕
+        scale_buttons_widget = QtWidgets.QWidget()
+        scale_buttons_layout = QtWidgets.QHBoxLayout(scale_buttons_widget)
+        scale_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        scale_values = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2]
+        for value in scale_values:
+            btn = QtWidgets.QPushButton(str(value))
+            btn.setMaximumWidth(60)
+            btn.clicked.connect(lambda _=None, v=value: self.scale_spinbox.setValue(v))
+            scale_buttons_layout.addWidget(btn)
+        scale_buttons_layout.addStretch()
+        scale_layout.addWidget(scale_buttons_widget)
+
+        # 旋轉區域
+        rotation_group = QtWidgets.QGroupBox("旋轉度數")
+        rotation_layout = QtWidgets.QVBoxLayout(rotation_group)
+
+        # 旋轉輸入欄
+        rotation_input_layout = QtWidgets.QHBoxLayout()
         self.rotation_spinbox = QtWidgets.QSpinBox()
         self.rotation_spinbox.setRange(-180, 180)
         self.rotation_spinbox.setSingleStep(90)
         self.rotation_spinbox.setValue(self.rotation)
         self.rotation_spinbox.valueChanged.connect(self.on_rotation_changed)
-        top_layout.addWidget(self.rotation_spinbox)
+        rotation_input_layout.addWidget(self.rotation_spinbox)
+        rotation_input_layout.addStretch()
+        rotation_layout.addLayout(rotation_input_layout)
 
-        top_layout.addStretch()
+        # 旋轉快速選取按鈕
+        rotation_buttons_widget = QtWidgets.QWidget()
+        rotation_buttons_layout = QtWidgets.QHBoxLayout(rotation_buttons_widget)
+        rotation_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        rotation_values = [-180, -90, 0, 90, 180]
+        for value in rotation_values:
+            btn = QtWidgets.QPushButton(str(value) + "°")
+            btn.setMaximumWidth(60)
+            btn.clicked.connect(lambda _=None, v=value: self.rotation_spinbox.setValue(v))
+            rotation_buttons_layout.addWidget(btn)
+        rotation_buttons_layout.addStretch()
+        rotation_layout.addWidget(rotation_buttons_widget)
+
+        # 將縮放和旋轉區域加入主要選項佈局
+        main_options_layout.addWidget(scale_group)
+        main_options_layout.addWidget(rotation_group)
+        main_options_layout.addStretch()
+
+        top_layout.addLayout(main_options_layout)
         parent_layout.addWidget(top_widget)
 
     def create_layer_list(self, parent_layout):
         """建立列表區域"""
+        # 全選/全不選按鈕區域
+        select_buttons_layout = QtWidgets.QHBoxLayout()
+
+        select_all_button = QtWidgets.QPushButton("全選")
+        select_all_button.clicked.connect(self.create_on_select_all(True))
+        select_buttons_layout.addWidget(select_all_button)
+
+        deselect_all_button = QtWidgets.QPushButton("全不選")
+        deselect_all_button.clicked.connect(self.create_on_select_all(False))
+        select_buttons_layout.addWidget(deselect_all_button)
+
+        select_buttons_layout.addStretch()
+        parent_layout.addLayout(select_buttons_layout)
+
         # 創建表格
         self.table = QtWidgets.QTableWidget()
         self.table.setColumnCount(2)
@@ -119,6 +179,15 @@ class Dialog(QtWidgets.QDialog):
 
     def on_rotation_changed(self, value):
         self.rotation = value
+
+    def create_on_select_all(self, checked):
+        def fn():
+            for i in range(self.table.rowCount()):
+                checkbox = self.table.cellWidget(i, 0)
+                if checkbox:
+                    checkbox.setChecked(checked)
+
+        return fn
 
     def on_selection_changed(self, i, state):
         self.rows[i].selected = state == QtCore.Qt.Checked
