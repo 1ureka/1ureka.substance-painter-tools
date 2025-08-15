@@ -1,7 +1,6 @@
 import substance_painter as sp  # type: ignore
 from PySide2 import QtWidgets  # type: ignore
 
-# from my_plugins import log_info
 from typing import Optional
 import importlib
 import ui.texture_sets_select as texture_sets_select
@@ -146,6 +145,7 @@ def process_layer_recursive(layer, layer_path: str = ""):
 
 
 def main():
+    # ------ 準備對話框所需資料 ------
     if not sp.project.is_open():
         return sp.logging.warning("未開啟任何專案，請先開啟一個專案。")
 
@@ -154,21 +154,39 @@ def main():
     if not rows:
         return sp.logging.warning("沒有紋理集可供選擇。")
 
-    dialog = texture_sets_select.Dialog(rows, sp.ui.get_main_window())
+    # ------ 對話框流程 ------
+    result = None
+    dialog: Optional[texture_sets_select.Dialog] = None
 
     try:
-        if (not dialog.exec_() == QtWidgets.QDialog.Accepted) or (not dialog.result):
+        dialog = texture_sets_select.Dialog(rows, sp.ui.get_main_window())
+
+        if not dialog.exec_() == QtWidgets.QDialog.Accepted:
             return sp.logging.info("取消映射操作")
 
-        global SCALE, ROTATION
-        SCALE = dialog.result.scale
-        ROTATION = dialog.result.rotation
+        if not dialog.result or not dialog.result.texture_sets:
+            return sp.logging.info("取消映射操作，未選擇任何紋理集")
 
+        result = dialog.result
+
+    except Exception as e:
+        return sp.logging.info(f"❌ 處理對話框時發生錯誤: {e}")
+
+    finally:
+        if dialog:
+            dialog.deleteLater()
+
+    # ------ 邏輯處理 ------
+    global SCALE, ROTATION
+    SCALE = result.scale
+    ROTATION = result.rotation
+
+    with sp.layerstack.ScopedModification("映射變換"):
         for texture_set in sp.textureset.all_texture_sets():
             set_name = texture_set.name()
             set_stacks = texture_set.all_stacks()
 
-            if set_name not in dialog.result.texture_sets:
+            if set_name not in result.texture_sets:
                 continue
 
             try:
@@ -180,10 +198,4 @@ def main():
             except Exception as e:
                 log_info(f"❌ 處理 Texture Set 時發生錯誤: {e}")
 
-        sp.logging.info("映射調整完成")
-
-    except Exception as e:
-        sp.logging.info(f"❌ 處理對話框時發生錯誤: {e}")
-
-    finally:
-        dialog.deleteLater()
+    sp.logging.info("映射調整完成")
