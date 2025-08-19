@@ -56,8 +56,16 @@ class TransformApplier:
         updated_params: dict[str, tuple[float, float]] = {}
 
         for k, v in modif_params.items():
-            if isinstance(k, str) and "scale" in k.lower() and isinstance(v, (int, float)):
+            if not (isinstance(k, str) and "scale" in k.lower()):
+                continue
+
+            new_value = v
+            if type(v) is int:
                 new_value = int(max(1, round(v * TransformApplier.scale)))
+            elif type(v) is float:
+                new_value = float(max(0.1, v * TransformApplier.scale))
+
+            if new_value != v:
                 updated_params[k] = (v, new_value)
                 modif_params[k] = new_value
 
