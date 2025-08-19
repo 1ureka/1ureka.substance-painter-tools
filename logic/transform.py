@@ -112,24 +112,18 @@ class TransformChecker:
 
         keys = [key.lower() for key in source.get_parameters().keys()]
         rules = {
-            "Mask Editor": {
-                "keywords": ["scale", "ao", "curvature", "position"],
-                "supported": True,
-            },
-            "Mask Builder": {
-                "keywords": ["scale", "ao", "curvature", "grunge"],
-                "supported": False,
-            },
+            "Mask Editor": ["scale", "ao", "curvature", "position"],
+            "Mask Builder": ["scale", "ao", "curvature", "grunge"],
         }
 
         suspect: Optional[tuple[str, int]] = None
-        for name, rule in rules.items():
-            missing = [kw for kw in rule["keywords"] if not any(kw in key for key in keys)]
+        for name, keywords in rules.items():
+            missing = [kw for kw in keywords if not any(kw in key for key in keys)]
 
             if not missing:
-                return (rule["supported"], "" if rule["supported"] else f"{name} based 生成器尚未支援")
+                return (True, "")
 
-            elif len(missing) < len(rule["keywords"]):
+            elif len(missing) < len(keywords):
                 if suspect is None or len(missing) < suspect[1]:
                     suspect = (f"{name} based 生成器疑似，但缺少參數: {', '.join(missing)}", len(missing))
 
