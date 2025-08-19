@@ -21,78 +21,87 @@ def log_info(*messages):
     print("-")
 
 
-def apply_transform(layer, info: str) -> None:
-    modif_params = layer.get_projection_parameters()
-
-    if SCALE != 1.0:
-        current_scale = modif_params.uv_transformation.scale
-        new_scale = [scale * SCALE for scale in current_scale]
-        modif_params.uv_transformation.scale = new_scale
-
-    if ROTATION != 0:
-        current_rotation = modif_params.uv_transformation.rotation
-        new_rotation = (current_rotation + ROTATION) % 360
-        modif_params.uv_transformation.rotation = new_rotation
-
-    if SCALE != 1.0 or ROTATION != 0:
-        old_params = layer.get_projection_parameters()
-        layer.set_projection_parameters(modif_params)
-        new_params = layer.get_projection_parameters()
-        log_info(
-            f"{info}",
-            f">>> 縮放: <{old_params.uv_transformation.scale} => {new_params.uv_transformation.scale}>",
-            f">>> 旋轉: <{old_params.uv_transformation.rotation} => {new_params.uv_transformation.rotation}>",
-        )
-
-
 def is_split_layer(layer) -> bool:
     return hasattr(layer, "source_mode") and layer.source_mode == sp.source.SourceMode.Split
 
 
-def is_source_scalable(layer, channel_name: Optional[str] = None) -> tuple[bool, str]:
-    # --- Material Source ---
+class TransformApplier:
+    @staticmethod
+    def fill_source(layer, info: str) -> None:
+        modif_params = layer.get_projection_parameters()
 
-    if layer.source_mode == sp.source.SourceMode.Material:
-        # 若來源是 anchor，則不變換
+        if SCALE != 1.0:
+            current_scale = modif_params.uv_transformation.scale
+            new_scale = [scale * SCALE for scale in current_scale]
+            modif_params.uv_transformation.scale = new_scale
+
+        if ROTATION != 0:
+            current_rotation = modif_params.uv_transformation.rotation
+            new_rotation = (current_rotation + ROTATION) % 360
+            modif_params.uv_transformation.rotation = new_rotation
+
+        if SCALE != 1.0 or ROTATION != 0:
+            old_params = layer.get_projection_parameters()
+            layer.set_projection_parameters(modif_params)
+            new_params = layer.get_projection_parameters()
+            log_info(
+                f"{info}",
+                f">>> 縮放: <{old_params.uv_transformation.scale} => {new_params.uv_transformation.scale}>",
+                f">>> 旋轉: <{old_params.uv_transformation.rotation} => {new_params.uv_transformation.rotation}>",
+            )
+
+    @staticmethod
+    def generator_source(layer, info: str) -> None:
+        # TODO: 實現生成器映射變換
+        log_info(f"{info}", "生成器映射變換尚未實現，跳過")
+
+
+class TransformChecker:
+    @staticmethod
+    def _material_source(layer) -> tuple[bool, str]:
         if hasattr(layer.get_material_source(), "anchor"):
             return (False, "來源為 Anchor")
 
         return (True, "")
 
-    # --- Other Source ---
+    @staticmethod
+    def fill_source(layer, channel_name: Optional[str] = None) -> tuple[bool, str]:
+        modes = [sp.layerstack.ProjectionMode.UV, sp.layerstack.ProjectionMode.Triplanar]
+        if layer.get_projection_mode() not in modes:
+            return (False, "不是使用 UV 或 Triplanar 映射")
 
-    source = layer.get_source(channel_name) if channel_name else layer.get_source()
+        if layer.source_mode == sp.source.SourceMode.Material:
+            return TransformChecker._material_source(layer)
 
-    # 若沒來源則不變換
-    if source is None:
-        return (False, "來源為 None")
+        source = layer.get_source(channel_name) if channel_name else layer.get_source()
 
-    # 若來源為 anchor，則不變換
-    if hasattr(source, "anchor"):
-        return (False, "來源為 Anchor")
+        if source is None:
+            return (False, "來源為 None")
 
-    # 若為 procedural source，則不變換
-    if hasattr(source, "get_parameters"):
-        procedural_params = ["scale", "tile", "tiling", "pattern_scale"]
-        if any(param in source.get_parameters() for param in procedural_params) and "3D" in layer.get_name():
-            return (False, "來源為 Procedural")
+        if hasattr(source, "anchor"):
+            return (False, "來源為 Anchor")
 
-    return (True, "")
+        if hasattr(source, "get_parameters"):
+            procedural_params = ["scale", "tile", "tiling", "pattern_scale"]
+            if any(param in source.get_parameters() for param in procedural_params) and "3D" in layer.get_name():
+                return (False, "來源為 Procedural")
 
+        return (True, "")
 
-def is_generator_scalable(layer) -> tuple[bool, str]:
-    source = layer.get_source()
-    if not source:
-        return (False, "來源為 None")
+    @staticmethod
+    def generator_source(layer) -> tuple[bool, str]:
+        source = layer.get_source()
+        if not source:
+            return (False, "來源為 None")
 
-    keys = [key.lower() for key in source.get_parameters().keys()]
-    required_keywords = ["scale", "ao", "curvature", "position"]
-    missing = [kw for kw in required_keywords if not any(kw in key for key in keys)]
+        keys = [key.lower() for key in source.get_parameters().keys()]
+        required_keywords = ["scale", "ao", "curvature", "position"]
+        missing = [kw for kw in required_keywords if not any(kw in key for key in keys)]
 
-    if missing:
-        return (False, f"缺少必要參數: {', '.join(missing)}")
+        if missing:
+            return (False, f"缺少必要參數: {', '.join(missing)}")
 
-    return (True, "")
+        return (True, "")
 
 
 # -------------------------------------------------------------------------
@@ -101,37 +110,28 @@ def is_generator_scalable(layer) -> tuple[bool, str]:
 
 
 def process_fill_layer(layer, name: str) -> None:
-    # 檢查圖層的 projection mode 是否為 UV 或 Triplanar
-    modes = [sp.layerstack.ProjectionMode.UV, sp.layerstack.ProjectionMode.Triplanar]
-    if layer.get_projection_mode() not in modes:
-        return log_info(f"❌ {name} 不是使用 UV 或 Triplanar，跳過處理")
-
-    # split source
     if is_split_layer(layer):
-        results = [is_source_scalable(layer, channel) for channel in layer.active_channels]
+        results = [TransformChecker.fill_source(layer, channel) for channel in layer.active_channels]
         if all(result[0] for result in results):
-            apply_transform(layer, f"✅ {name} 是可縮放的 Split Layer")
+            TransformApplier.fill_source(layer, f"✅ {name} 是可變換的 Split Layer")
         else:
             reasons = ", ".join(reason for ok, reason in results if not ok)
-            log_info(f"❌ {name} 是不可縮放的 Split Layer（{reasons}），跳過處理")
+            log_info(f"❌ {name} 是不可變換的 Split Layer（{reasons}），跳過處理")
 
-    # single source
     else:
-        ok, reason = is_source_scalable(layer)
+        ok, reason = TransformChecker.fill_source(layer)
         if ok:
-            apply_transform(layer, f"✅ {name} 是可縮放的 Single Layer")
+            TransformApplier.fill_source(layer, f"✅ {name} 是可變換的 Single Layer")
         else:
-            log_info(f"❌ {name} 是不可縮放的 Single Layer（{reason}），跳過處理")
+            log_info(f"❌ {name} 是不可變換的 Single Layer（{reason}），跳過處理")
 
 
 def process_generator_layer(layer, name: str) -> None:
-    ok, reason = is_generator_scalable(layer)
-    if not ok:
-        return log_info(f"❌ {name} 是不可縮放的 Generator（{reason}），跳過處理")
-
-    # TODO: 實現生成器映射變換
-
-    return log_info("生成器縮放仍在開發中，暫時不處理")
+    ok, reason = TransformChecker.generator_source(layer)
+    if ok:
+        TransformApplier.generator_source(layer, f"✅ {name} 是可變換的 Generator")
+    else:
+        log_info(f"❌ {name} 是不可變換的 Generator（{reason}），跳過處理")
 
 
 def process_layer_effects(layer, name: str) -> None:
