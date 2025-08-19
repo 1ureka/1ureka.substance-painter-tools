@@ -52,10 +52,21 @@ class TransformApplier:
 
     @staticmethod
     def generator_source(layer, info: str) -> None:
-        modif_params = layer.get_source().get_parameters().items()
+        modif_params = layer.get_source().get_parameters()
+        updated_params: dict[str, tuple[float, float]] = {}
 
-        # TODO: 實現生成器映射變換
-        log_info(f"{info}", "生成器映射變換尚未實現，跳過")
+        for k, v in modif_params.items():
+            if type(k) is str and "scale" in k.lower() and isinstance(v, (int, float)):
+                new_value = v * TransformApplier.scale
+                updated_params[k] = (v, new_value)
+                modif_params[k] = new_value
+
+        if updated_params:
+            changes = [f"生成器參數 <{k}> 變換: <{old} => {new}>" for k, (old, new) in updated_params.items()]
+            layer.get_source().set_parameters(modif_params)
+            log_info(info, *changes)
+        else:
+            log_info(info, "⚠️ 找不到可變換的 scale 參數")
 
 
 class TransformChecker:
