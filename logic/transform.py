@@ -80,17 +80,27 @@ def is_source_scalable(layer, channel_name: Optional[str] = None) -> tuple[bool,
     return (True, "")
 
 
+def is_generator_scalable(layer) -> tuple[bool, str]:
+    source = layer.get_source()
+    if not source:
+        return (False, "來源為 None")
+
+    keys = [key.lower() for key in source.get_parameters().keys()]
+    required_keywords = ["scale", "ao", "curvature", "position"]
+    missing = [kw for kw in required_keywords if not any(kw in key for key in keys)]
+
+    if missing:
+        return (False, f"缺少必要參數: {', '.join(missing)}")
+
+    return (True, "")
+
+
 # -------------------------------------------------------------------------
 # 主要函數
 # -------------------------------------------------------------------------
 
 
-def process_layer(layer, name: str) -> None:
-    # 檢查圖層類型是否為 FillLayer 或 FillEffect
-    types = [sp.layerstack.NodeType.FillLayer, sp.layerstack.NodeType.FillEffect]
-    if layer.get_type() not in types:
-        return log_info(f"❌ {name} 不是 FillLayer 或 FillEffect，跳過處理")
-
+def process_fill_layer(layer, name: str) -> None:
     # 檢查圖層的 projection mode 是否為 UV 或 Triplanar
     modes = [sp.layerstack.ProjectionMode.UV, sp.layerstack.ProjectionMode.Triplanar]
     if layer.get_projection_mode() not in modes:
@@ -114,29 +124,56 @@ def process_layer(layer, name: str) -> None:
             log_info(f"❌ {name} 是不可縮放的 Single Layer（{reason}），跳過處理")
 
 
+def process_generator_layer(layer, name: str) -> None:
+    ok, reason = is_generator_scalable(layer)
+    if not ok:
+        return log_info(f"❌ {name} 是不可縮放的 Generator（{reason}），跳過處理")
+
+    # TODO: 實現生成器映射變換
+
+    return log_info("生成器縮放仍在開發中，暫時不處理")
+
+
 def process_layer_effects(layer, name: str) -> None:
     if hasattr(layer, "content_effects") and layer.content_effects():
         for effect in layer.content_effects():
-            process_layer(effect, f"{name} / ContentEffects / {effect.get_name()}")
+            process_layer_recursive(effect, f"{name} / ContentEffects")
 
     if hasattr(layer, "mask_effects") and layer.mask_effects():
         for effect in layer.mask_effects():
-            process_layer(effect, f"{name} / MaskEffects / {effect.get_name()}")
+            process_layer_recursive(effect, f"{name} / MaskEffects")
 
 
 def process_layer_recursive(layer, layer_path: str = ""):
     layer_name = layer.get_name()
+    layer_type = layer.get_type()
     full_path = f"{layer_path} / {layer_name}" if layer_path else layer_name
 
-    if layer.get_type() == sp.layerstack.NodeType.GroupLayer:
+    group_type = sp.layerstack.NodeType.GroupLayer
+    generator_type = sp.layerstack.NodeType.GeneratorEffect
+    fill_types = [sp.layerstack.NodeType.FillLayer, sp.layerstack.NodeType.FillEffect]
+    paint_type = sp.layerstack.NodeType.PaintLayer
+
+    if layer_type == group_type:
         if not layer.is_visible():
             return log_info(f"❌ {full_path} 是不可見的 Group Layer，跳過處理其所有子圖層")
+
         for sub_layer in list(layer.sub_layers()):
             process_layer_recursive(sub_layer, full_path)
         process_layer_effects(layer, full_path)
-    else:
-        process_layer(layer, full_path)
+
+    elif layer_type == generator_type:
+        process_generator_layer(layer, full_path)
+
+    elif layer_type in fill_types:
+        process_fill_layer(layer, full_path)
         process_layer_effects(layer, full_path)
+
+    elif layer_type == paint_type:
+        process_layer_effects(layer, full_path)
+
+    else:
+        log_info(f"❌ {full_path} 是 {layer_type}，跳過處理")
 
 
 # -------------------------------------------------------------------------
