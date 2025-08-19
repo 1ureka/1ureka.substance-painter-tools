@@ -80,6 +80,9 @@ class TransformChecker:
         if source is None:
             return (False, "來源為 None")
 
+        if hasattr(source, "resource_id") and "project" in source.resource_id.context:
+            return (False, "來源為 Project Resource, 很有可能為烘焙結果而非紋理")
+
         if hasattr(source, "anchor"):
             return (False, "來源為 Anchor")
 
