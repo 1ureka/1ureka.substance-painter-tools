@@ -7,9 +7,6 @@ import ui.texture_sets_select as texture_sets_select
 
 importlib.reload(texture_sets_select)
 
-SCALE = 1.5
-ROTATION = 0
-
 # -------------------------------------------------------------------------
 # 工具函數
 # -------------------------------------------------------------------------
@@ -26,21 +23,24 @@ def is_split_layer(layer) -> bool:
 
 
 class TransformApplier:
+    scale = 1.0
+    rotation = 0
+
     @staticmethod
     def fill_source(layer, info: str) -> None:
         modif_params = layer.get_projection_parameters()
 
-        if SCALE != 1.0:
+        if TransformApplier.scale != 1.0:
             current_scale = modif_params.uv_transformation.scale
-            new_scale = [scale * SCALE for scale in current_scale]
+            new_scale = [scale * TransformApplier.scale for scale in current_scale]
             modif_params.uv_transformation.scale = new_scale
 
-        if ROTATION != 0:
+        if TransformApplier.rotation != 0:
             current_rotation = modif_params.uv_transformation.rotation
-            new_rotation = (current_rotation + ROTATION) % 360
+            new_rotation = (current_rotation + TransformApplier.rotation) % 360
             modif_params.uv_transformation.rotation = new_rotation
 
-        if SCALE != 1.0 or ROTATION != 0:
+        if TransformApplier.scale != 1.0 or TransformApplier.rotation != 0:
             old_params = layer.get_projection_parameters()
             layer.set_projection_parameters(modif_params)
             new_params = layer.get_projection_parameters()
@@ -52,6 +52,8 @@ class TransformApplier:
 
     @staticmethod
     def generator_source(layer, info: str) -> None:
+        modif_params = layer.get_source().get_parameters().items()
+
         # TODO: 實現生成器映射變換
         log_info(f"{info}", "生成器映射變換尚未實現，跳過")
 
@@ -214,9 +216,8 @@ def main():
             dialog.deleteLater()
 
     # ------ 邏輯處理 ------
-    global SCALE, ROTATION
-    SCALE = result.scale
-    ROTATION = result.rotation
+    TransformApplier.scale = result.scale
+    TransformApplier.rotation = result.rotation
 
     with sp.layerstack.ScopedModification("映射變換"):
         for texture_set in sp.textureset.all_texture_sets():
