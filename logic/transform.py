@@ -100,13 +100,32 @@ class TransformChecker:
             return (False, "來源為 None")
 
         keys = [key.lower() for key in source.get_parameters().keys()]
-        required_keywords = ["scale", "ao", "curvature", "position"]
-        missing = [kw for kw in required_keywords if not any(kw in key for key in keys)]
+        rules = {
+            "Mask Editor": {
+                "keywords": ["scale", "ao", "curvature", "position"],
+                "supported": True,
+            },
+            "Mask Builder": {
+                "keywords": ["scale", "ao", "curvature", "grunge"],
+                "supported": False,
+            },
+        }
 
-        if missing:
-            return (False, f"缺少必要參數: {', '.join(missing)}")
+        suspect: Optional[tuple[str, int]] = None
+        for name, rule in rules.items():
+            missing = [kw for kw in rule["keywords"] if not any(kw in key for key in keys)]
 
-        return (True, "")
+            if not missing:
+                return (rule["supported"], "" if rule["supported"] else f"{name} based 生成器尚未支援")
+
+            elif len(missing) < len(rule["keywords"]):
+                if suspect is None or len(missing) < suspect[1]:
+                    suspect = (f"{name} based 生成器疑似，但缺少參數: {', '.join(missing)}", len(missing))
+
+        if suspect:
+            return (False, suspect[0])
+
+        return (False, "未知的 Generator 類型，跳過處理")
 
 
 # -------------------------------------------------------------------------
