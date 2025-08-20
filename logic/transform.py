@@ -1,7 +1,7 @@
 import substance_painter as sp  # type: ignore
 from PySide2 import QtWidgets  # type: ignore
 
-from typing import Optional
+from typing import Callable, Union, Optional
 import importlib
 import ui.texture_sets_select as texture_sets_select
 
@@ -12,7 +12,7 @@ importlib.reload(texture_sets_select)
 # -------------------------------------------------------------------------
 
 
-def log_info(*messages):
+def log_info(*messages: str) -> None:
     for message in messages:
         print(message)
     print("-")
@@ -22,79 +22,54 @@ def is_split_layer(layer) -> bool:
     return hasattr(layer, "source_mode") and layer.source_mode == sp.source.SourceMode.Split
 
 
-class TransformApplier:
-    scale = 1.0
-    rotation = 0
+class TransformContext:
+    scale: float = 1.0
+    rotation: float = 0.0
 
-    @staticmethod
-    def fill_source(layer, info: str) -> None:
-        modif_params = layer.get_projection_parameters()
 
-        if TransformApplier.scale != 1.0:
-            current_scale = modif_params.uv_transformation.scale
-            new_scale = [scale * TransformApplier.scale for scale in current_scale]
-            modif_params.uv_transformation.scale = new_scale
-
-        if TransformApplier.rotation != 0:
-            current_rotation = modif_params.uv_transformation.rotation
-            new_rotation = (current_rotation + TransformApplier.rotation) % 360
-            modif_params.uv_transformation.rotation = new_rotation
-
-        if TransformApplier.scale != 1.0 or TransformApplier.rotation != 0:
-            old_params = layer.get_projection_parameters()
-            layer.set_projection_parameters(modif_params)
-            new_params = layer.get_projection_parameters()
-            log_info(
-                f"{info}",
-                f">>> 縮放: <{old_params.uv_transformation.scale} => {new_params.uv_transformation.scale}>",
-                f">>> 旋轉: <{old_params.uv_transformation.rotation} => {new_params.uv_transformation.rotation}>",
-            )
-
-    @staticmethod
-    def generator_source(layer, info: str) -> None:
-        modif_params = layer.get_source().get_parameters()
-        updated_params: dict[str, tuple[float, float]] = {}
-
-        for k, v in modif_params.items():
-            if not (isinstance(k, str) and "scale" in k.lower()):
-                continue
-
-            new_value = v
-            if type(v) is int:
-                new_value = int(max(1, round(v * TransformApplier.scale)))
-            elif type(v) is float:
-                new_value = float(max(0.1, v * TransformApplier.scale))
-
-            if new_value != v:
-                updated_params[k] = (v, new_value)
-                modif_params[k] = new_value
-
-        if updated_params:
-            changes = [f"生成器參數 <{k}> 變換: <{old} => {new}>" for k, (old, new) in updated_params.items()]
-            layer.get_source().set_parameters(modif_params)
-            log_info(info, *changes)
+def validate_and_apply(
+    layer: object,
+    full_path: str,
+    layer_type: str,
+    is_valid: Union[Callable[[object], tuple[bool, str]], Callable[[object, str], tuple[bool, str]]],
+    apply: Callable[[object], list[str]],
+    channels: Optional[list[str]] = None,
+) -> None:
+    if channels:
+        results = [is_valid(layer, ch) for ch in channels]
+        if all(ok for ok, _ in results):
+            log_info(f"✅ {full_path} 是可變換的 {layer_type}", *apply(layer))
         else:
-            log_info(info, "⚠️ 找不到可變換的 scale 參數")
+            reasons = ", ".join(reason for ok, reason in results if not ok)
+            log_info(f"⚠️ {full_path} 是不可變換的 {layer_type}（{reasons}），跳過處理")
+
+    else:
+        ok, reason = is_valid(layer)
+        if ok:
+            log_info(f"✅ {full_path} 是可變換的 {layer_type}", *apply(layer))
+        else:
+            log_info(f"⚠️ {full_path} 是不可變換的 {layer_type}（{reason}），跳過處理")
 
 
-class TransformChecker:
-    @staticmethod
-    def _material_source(layer) -> tuple[bool, str]:
+def create_handle_fill():
+    def is_valid_material(layer) -> tuple[bool, str]:
         if hasattr(layer.get_material_source(), "anchor"):
             return (False, "來源為 Anchor")
 
         return (True, "")
 
-    @staticmethod
-    def fill_source(layer, channel_name: Optional[str] = None) -> tuple[bool, str]:
+    def is_valid(layer, channel_name: Optional[str] = None) -> tuple[bool, str]:
         modes = [sp.layerstack.ProjectionMode.UV, sp.layerstack.ProjectionMode.Triplanar]
         if layer.get_projection_mode() not in modes:
             return (False, "不是使用 UV 或 Triplanar 映射")
 
         if layer.source_mode == sp.source.SourceMode.Material:
-            return TransformChecker._material_source(layer)
+            return is_valid_material(layer)
 
-        source = layer.get_source(channel_name) if channel_name else layer.get_source()
+        try:
+            source = layer.get_source(channel_name) if channel_name else layer.get_source()
+        except Exception:
+            return (False, "來源為 None")
 
         if source is None:
             return (False, "來源為 None")
@@ -112,8 +87,39 @@ class TransformChecker:
 
         return (True, "")
 
-    @staticmethod
-    def generator_source(layer) -> tuple[bool, str]:
+    def apply(layer) -> list[str]:
+        modif_params = layer.get_projection_parameters()
+        changes = []
+
+        if TransformContext.scale != 1.0:
+            current_scale = modif_params.uv_transformation.scale
+            new_scale = [scale * TransformContext.scale for scale in current_scale]
+            modif_params.uv_transformation.scale = new_scale
+            changes.append(f">>> 縮放: <{current_scale} => {new_scale}>")
+
+        if TransformContext.rotation != 0:
+            current_rotation = modif_params.uv_transformation.rotation
+            new_rotation = (current_rotation + TransformContext.rotation) % 360
+            modif_params.uv_transformation.rotation = new_rotation
+            changes.append(f">>> 旋轉: <{current_rotation} => {new_rotation}>")
+
+        if not changes:
+            return ["⚠️ 找不到可變換的參數"]
+
+        layer.set_projection_parameters(modif_params)
+        return changes
+
+    def main(layer, full_path: str) -> None:
+        if is_split_layer(layer):
+            validate_and_apply(layer, full_path, "Split Layer", is_valid, apply, layer.active_channels)
+        else:
+            validate_and_apply(layer, full_path, "Single Layer", is_valid, apply)
+
+    return main
+
+
+def create_handle_generator():
+    def is_valid(layer) -> tuple[bool, str]:
         source = layer.get_source()
         if not source:
             return (False, "來源為 None")
@@ -121,7 +127,8 @@ class TransformChecker:
         keys = [key.lower() for key in source.get_parameters().keys()]
         rules = {
             "Mask Editor": ["scale", "ao", "curvature", "position"],
-            "Mask Builder": ["scale", "ao", "curvature", "grunge"],
+            "Mask Builder": ["scale", "ao", "curvature", "grunge"],  # 也包含新版 Dirt, Metal Edge Wear 等
+            "Metal Edge Wear": ["scale", "curvature", "wear"],  # 對舊版 Metal Edge Wear 的兼容
         }
 
         suspect: Optional[tuple[str, int]] = None
@@ -138,79 +145,99 @@ class TransformChecker:
         if suspect:
             return (False, suspect[0])
 
-        return (False, "未知的 Generator 類型，跳過處理")
+        return (False, "未知的 Generator 類型")
+
+    def apply(layer) -> list[str]:
+        modif_params = layer.get_source().get_parameters()
+        updated_params: dict[str, tuple[float, float]] = {}
+
+        for k, v in modif_params.items():
+            if not (isinstance(k, str) and "scale" in k.lower()):
+                continue
+
+            new_value = v
+            if type(v) is int:
+                new_value = int(max(1, round(v * TransformContext.scale)))
+            elif type(v) is float:
+                new_value = float(max(0.1, v * TransformContext.scale))
+
+            if new_value != v:
+                updated_params[k] = (v, new_value)
+                modif_params[k] = new_value
+
+        if updated_params:
+            changes = [f"生成器參數 <{k}> 變換: <{old} => {new}>" for k, (old, new) in updated_params.items()]
+            layer.get_source().set_parameters(modif_params)
+            return changes
+        else:
+            return ["⚠️ 找不到可變換的 scale 參數"]
+
+    def main(layer, full_path: str) -> None:
+        validate_and_apply(layer, full_path, "Generator", is_valid, apply)
+
+    return main
+
+
+def create_handle_filter():
+    def is_valid(layer) -> tuple[bool, str]:
+        # TODO: 過濾出名稱帶有 MatFinish 的 MatFinish 系列濾鏡
+        return (False, "非 MatFinish 系列濾鏡")
+
+    def apply(layer) -> list[str]:
+        # TODO: 將 MatFinish 系列濾鏡中的參數 "scale" 調整
+        return []
+
+    def main(layer, full_path: str) -> None:
+        validate_and_apply(layer, full_path, "Filter", is_valid, apply)
+
+    return main
+
+
+def create_handle_group():
+    def main(layer, full_path: str) -> None:
+        if not layer.is_visible():
+            return log_info(f"⚠️ {full_path} 是不可見的 Group Layer，跳過處理其所有子圖層")
+
+        for sub_layer in list(layer.sub_layers()):
+            process_layer(sub_layer, full_path)
+
+    return main
 
 
 # -------------------------------------------------------------------------
 # 主要函數
 # -------------------------------------------------------------------------
 
-
-def process_fill_layer(layer, name: str) -> None:
-    if is_split_layer(layer):
-        results = [TransformChecker.fill_source(layer, channel) for channel in layer.active_channels]
-        if all(result[0] for result in results):
-            TransformApplier.fill_source(layer, f"✅ {name} 是可變換的 Split Layer")
-        else:
-            reasons = ", ".join(reason for ok, reason in results if not ok)
-            log_info(f"❌ {name} 是不可變換的 Split Layer（{reasons}），跳過處理")
-
-    else:
-        ok, reason = TransformChecker.fill_source(layer)
-        if ok:
-            TransformApplier.fill_source(layer, f"✅ {name} 是可變換的 Single Layer")
-        else:
-            log_info(f"❌ {name} 是不可變換的 Single Layer（{reason}），跳過處理")
+Handlers = {
+    sp.layerstack.NodeType.GroupLayer: create_handle_group(),
+    sp.layerstack.NodeType.GeneratorEffect: create_handle_generator(),
+    sp.layerstack.NodeType.FillLayer: create_handle_fill(),
+    sp.layerstack.NodeType.FillEffect: create_handle_fill(),
+    sp.layerstack.NodeType.FilterEffect: create_handle_filter(),
+}
 
 
-def process_generator_layer(layer, name: str) -> None:
-    ok, reason = TransformChecker.generator_source(layer)
-    if ok:
-        TransformApplier.generator_source(layer, f"✅ {name} 是可變換的 Generator")
-    else:
-        log_info(f"❌ {name} 是不可變換的 Generator（{reason}），跳過處理")
-
-
-def process_layer_effects(layer, name: str) -> None:
-    if hasattr(layer, "content_effects") and layer.content_effects():
-        for effect in layer.content_effects():
-            process_layer_recursive(effect, f"{name} / ContentEffects")
-
-    if hasattr(layer, "mask_effects") and layer.mask_effects():
-        for effect in layer.mask_effects():
-            process_layer_recursive(effect, f"{name} / MaskEffects")
-
-
-def process_layer_recursive(layer, layer_path: str = ""):
+def process_layer(layer, layer_path: str = ""):
     layer_name = layer.get_name()
     layer_type = layer.get_type()
     full_path = f"{layer_path} / {layer_name}" if layer_path else layer_name
 
-    group_type = sp.layerstack.NodeType.GroupLayer
-    generator_type = sp.layerstack.NodeType.GeneratorEffect
-    fill_types = [sp.layerstack.NodeType.FillLayer, sp.layerstack.NodeType.FillEffect]
-    paint_type = sp.layerstack.NodeType.PaintLayer
-
-    if layer_type == group_type:
-        if not layer.is_visible():
-            return log_info(f"❌ {full_path} 是不可見的 Group Layer，跳過處理其所有子圖層")
-
-        for sub_layer in list(layer.sub_layers()):
-            process_layer_recursive(sub_layer, full_path)
-        process_layer_effects(layer, full_path)
-
-    elif layer_type == generator_type:
-        process_generator_layer(layer, full_path)
-
-    elif layer_type in fill_types:
-        process_fill_layer(layer, full_path)
-        process_layer_effects(layer, full_path)
-
-    elif layer_type == paint_type:
-        process_layer_effects(layer, full_path)
-
+    handler = Handlers.get(layer_type)
+    if handler:
+        try:
+            handler(layer, full_path)
+        except Exception as e:
+            log_info(f"❌ 處理 {full_path} 時發生錯誤: {e}")
     else:
-        log_info(f"❌ {full_path} 是 {layer_type}，跳過處理")
+        log_info(f"⚠️ {full_path} 是 {layer_type}，跳過處理")
+
+    if hasattr(layer, "content_effects") and layer.content_effects():
+        for effect in layer.content_effects():
+            process_layer(effect, f"{full_path} / ContentEffects")
+
+    if hasattr(layer, "mask_effects") and layer.mask_effects():
+        for effect in layer.mask_effects():
+            process_layer(effect, f"{full_path} / MaskEffects")
 
 
 # -------------------------------------------------------------------------
@@ -251,8 +278,8 @@ def main():
             dialog.deleteLater()
 
     # ------ 邏輯處理 ------
-    TransformApplier.scale = result.scale
-    TransformApplier.rotation = result.rotation
+    TransformContext.scale = result.scale
+    TransformContext.rotation = result.rotation
 
     with sp.layerstack.ScopedModification("映射變換"):
         for texture_set in sp.textureset.all_texture_sets():
@@ -266,7 +293,7 @@ def main():
                 log_info(f"🎨 處理 Texture Set: {set_name}")
                 for index, stack in enumerate(set_stacks):
                     for layer in sp.layerstack.get_root_layer_nodes(stack):
-                        process_layer_recursive(layer, f"{set_name} / Stack{index}")
+                        process_layer(layer, f"{set_name} / Stack{index}")
 
             except Exception as e:
                 log_info(f"❌ 處理 Texture Set 時發生錯誤: {e}")
