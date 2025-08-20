@@ -17,17 +17,12 @@ class Result:
 
 class Dialog(QtWidgets.QDialog):
     def __init__(self, rows: List[Row], parent=None):
+        # 初始化對話框
         super().__init__(parent)
-        self.rows = rows
-        self.scale = 2.0
-        self.rotation = 0
-        self.init_ui()
-
-    def init_ui(self):
-        """初始化 UI"""
         self.setWindowTitle("選擇需映射變換的紋理集")
         self.setMinimumSize(800, 600)
         self.resize(1000, 700)
+        self.rows = rows
 
         # 佈局
         main_layout = QtWidgets.QVBoxLayout(self)
@@ -65,10 +60,7 @@ class Dialog(QtWidgets.QDialog):
         self.scale_spinbox = QtWidgets.QDoubleSpinBox()
         self.scale_spinbox.setRange(0.01, 100.0)
         self.scale_spinbox.setSingleStep(0.1)
-        self.scale_spinbox.setDecimals(2)
-        self.scale_spinbox.setValue(self.scale)
-        self.scale_spinbox.valueChanged.connect(self.on_scale_changed)
-
+        self.scale_spinbox.setValue(2.0)
         scale_group = self.create_option_group(
             title="縮放倍數",
             spinbox=self.scale_spinbox,
@@ -79,9 +71,6 @@ class Dialog(QtWidgets.QDialog):
         self.rotation_spinbox = QtWidgets.QSpinBox()
         self.rotation_spinbox.setRange(-180, 180)
         self.rotation_spinbox.setSingleStep(90)
-        self.rotation_spinbox.setValue(self.rotation)
-        self.rotation_spinbox.valueChanged.connect(self.on_rotation_changed)
-
         rotation_group = self.create_option_group(
             title="旋轉度數",
             spinbox=self.rotation_spinbox,
@@ -160,12 +149,6 @@ class Dialog(QtWidgets.QDialog):
 
         parent_layout.addLayout(button_layout)
 
-    def on_scale_changed(self, value):
-        self.scale = value
-
-    def on_rotation_changed(self, value):
-        self.rotation = value
-
     def create_on_select_all(self, checked):
         def fn():
             for i in range(self.table.rowCount()):
@@ -185,5 +168,5 @@ class Dialog(QtWidgets.QDialog):
             QtWidgets.QMessageBox.warning(self, "警告", "請至少選擇一個紋理集進行映射變換。")
             return
 
-        self.result = Result(self.scale, self.rotation, texture_sets)
+        self.result = Result(self.scale_spinbox.value(), self.rotation_spinbox.value(), texture_sets)
         self.accept()
