@@ -250,7 +250,11 @@ def main():
     if not sp.project.is_open():
         return sp.logging.warning("未開啟任何專案，請先開啟一個專案。")
 
-    rows = [texture_sets_select.Row(texture_set.name()) for texture_set in sp.textureset.all_texture_sets()]
+    active_set = sp.textureset.get_active_stack().name() or sp.textureset.get_active_stack().__str__()
+    rows = [
+        texture_sets_select.Row(texture_set.name(), texture_set.name() == active_set)
+        for texture_set in sp.textureset.all_texture_sets()
+    ]
 
     if not rows:
         return sp.logging.warning("沒有紋理集可供選擇。")
