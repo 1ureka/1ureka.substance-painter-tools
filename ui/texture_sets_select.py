@@ -1,11 +1,11 @@
 from PySide2 import QtWidgets, QtCore  # type: ignore
-from typing import List
+from typing import List, Optional
 
 
 class Row:
-    def __init__(self, name: str):
+    def __init__(self, name: str, selected: Optional[bool] = True):
         self.name = name
-        self.selected = True
+        self.selected = selected
 
 
 class Result:
