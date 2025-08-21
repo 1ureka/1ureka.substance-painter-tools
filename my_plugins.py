@@ -33,4 +33,5 @@ def start_plugin():
 def close_plugin():
     global open_menu_action, menu
     sp.ui.delete_ui_element(open_menu_action)
+    menu.destroyed.connect(lambda: sp.logging.info("已正確釋放插件選單資源"))
     menu.deleteLater()

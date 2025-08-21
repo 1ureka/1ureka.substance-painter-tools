@@ -302,6 +302,7 @@ def main():
 
     finally:
         if dialog:
+            dialog.destroyed.connect(lambda: sp.logging.info("已正確釋放紋理集選取對話框資源"))
             dialog.deleteLater()
 
     # ------ 邏輯處理 ------
@@ -338,4 +339,5 @@ def main():
 
     finally:
         if result_dialog:
+            result_dialog.destroyed.connect(lambda: sp.logging.info("已正確釋放映射變換結果對話框資源"))
             result_dialog.deleteLater()
