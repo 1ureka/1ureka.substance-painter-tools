@@ -10,8 +10,6 @@ importlib.reload(radial_menu)
 importlib.reload(transform)
 importlib.reload(randomize)
 
-WIDGETS = []
-
 
 def on_menu_option_selected(option):
     if option == "映射變換":
@@ -20,20 +18,19 @@ def on_menu_option_selected(option):
         randomize.main()
 
 
+parent = sp.ui.get_main_window()
+menu = radial_menu.RadialMenu(parent, ["映射變換", "隨機化種子"], on_menu_option_selected)
+
+open_menu_action = QtWidgets.QAction("開啟插件選單", parent)
+open_menu_action.setShortcut(QtGui.QKeySequence("Ctrl+Q"))
+open_menu_action.triggered.connect(lambda: menu.show_at_cursor())
+
+
 def start_plugin():
-    parent = sp.ui.get_main_window()
-
-    menu = radial_menu.RadialMenu(parent, ["映射變換", "隨機化種子"], on_menu_option_selected)
-    WIDGETS.append(menu)
-
-    action = QtWidgets.QAction("開啟插件選單", parent)
-    action.setShortcut(QtGui.QKeySequence("Ctrl+Q"))
-    action.triggered.connect(lambda: menu.show_at_cursor())
-
-    sp.ui.add_action(sp.ui.ApplicationMenu.Edit, action)
-    WIDGETS.append(action)
+    sp.ui.add_action(sp.ui.ApplicationMenu.Edit, open_menu_action)
 
 
 def close_plugin():
-    for widget in WIDGETS:
-        sp.ui.delete_ui_element(widget)
+    global open_menu_action, menu
+    sp.ui.delete_ui_element(open_menu_action)
+    menu.deleteLater()
