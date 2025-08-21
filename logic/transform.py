@@ -2,6 +2,7 @@ import substance_painter as sp  # type: ignore
 from PySide2 import QtWidgets  # type: ignore
 
 from typing import Callable, Optional, TypedDict, Literal
+from dataclasses import dataclass
 import importlib
 import ui.texture_sets_select as texture_sets_select
 import ui.transform_result_dialog as transform_result_dialog
@@ -14,59 +15,59 @@ importlib.reload(transform_result_dialog)
 # -------------------------------------------------------------------------
 
 
+class PathChange(TypedDict):
+    type: Literal["skip", "error", "success"]
+    layer_type: str
+    messages: list[str]
+
+
+@dataclass(frozen=True)
 class TransformContext:
-    scale: float = 1.0
-    rotation: float = 0.0
+    scale_multiplier: float
+    rotation_offset: float
+    changes_by_path: dict[str, PathChange]
 
-    class PathChange(TypedDict):
-        type: Literal["skip", "error", "success"]
-        layer_type: str
-        messages: list[str]  # reasons, changes etc.
+    def add_success(self, path: str, layer_type: str, messages: list[str]) -> None:
+        self.changes_by_path[path] = {"type": "success", "layer_type": layer_type, "messages": messages}
 
-    changesByPath: dict[str, PathChange] = {}
+    def add_skip(self, path: str, layer_type: str, messages: list[str]) -> None:
+        self.changes_by_path[path] = {"type": "skip", "layer_type": layer_type, "messages": messages}
 
-    @classmethod
-    def add_success(this, path: str, layer_type: str, messages: list[str]) -> None:
-        this.changesByPath[path] = {"type": "success", "layer_type": layer_type, "messages": messages}
+    def add_error(self, path: str, layer_type: str, messages: list[str]) -> None:
+        self.changes_by_path[path] = {"type": "error", "layer_type": layer_type, "messages": messages}
 
-    @classmethod
-    def add_skip(this, path: str, layer_type: str, messages: list[str]) -> None:
-        this.changesByPath[path] = {"type": "skip", "layer_type": layer_type, "messages": messages}
+    def get_result(self) -> dict[str, PathChange]:
+        return self.changes_by_path
 
-    @classmethod
-    def add_error(this, path: str, layer_type: str, messages: list[str]) -> None:
-        this.changesByPath[path] = {"type": "error", "layer_type": layer_type, "messages": messages}
 
-    @classmethod
-    def reset_changes(this) -> None:
-        this.changesByPath.clear()
-
-    @classmethod
-    def get_result(this) -> dict[str, PathChange]:
-        return this.changesByPath
+def create_context(scale_multiplier: float, rotation_offset: float):
+    return TransformContext(scale_multiplier, rotation_offset, {})
 
 
 def create_handler(
     is_valid: Callable[..., tuple[bool, str]],
     is_multi_channel: Optional[Callable[[object], bool]],
-    apply: Callable[[object], list[str]],
+    apply: Callable[[object, float, float], list[str]],
 ):
-    def handler(layer: object, full_path: str, layer_type: str) -> None:
+    def handler(layer: object, full_path: str, ctx: TransformContext) -> None:
+        layer_type = str(layer.get_type())
+
         if is_multi_channel and is_multi_channel(layer):
             results = [is_valid(layer, ch) for ch in layer.active_channels]
             if all(ok for ok, _ in results):
-                TransformContext.add_success(full_path, layer_type + "(Split)", messages=apply(layer))
+                messages = apply(layer, ctx.scale_multiplier, ctx.rotation_offset)
+                ctx.add_success(full_path, layer_type + "(Split)", messages)
             else:
-                TransformContext.add_skip(
-                    full_path, layer_type + "(Split)", messages=[reason for ok, reason in results if not ok]
-                )
+                messages = [reason for ok, reason in results if not ok]
+                ctx.add_skip(full_path, layer_type + "(Split)", messages=messages)
 
         else:
             ok, reason = is_valid(layer)
             if ok:
-                TransformContext.add_success(full_path, layer_type, messages=apply(layer))
+                messages = apply(layer, ctx.scale_multiplier, ctx.rotation_offset)
+                ctx.add_success(full_path, layer_type, messages)
             else:
-                TransformContext.add_skip(full_path, layer_type, messages=[reason])
+                ctx.add_skip(full_path, layer_type, messages=[reason])
 
     return handler
 
@@ -110,19 +111,19 @@ def create_handle_fill():
 
         return (True, "")
 
-    def apply(layer) -> list[str]:
+    def apply(layer, scale_multiplier: float, rotation_offset: float) -> list[str]:
         modif_params = layer.get_projection_parameters()
         changes = []
 
-        if TransformContext.scale != 1.0:
+        if scale_multiplier != 1.0:
             current_scale = modif_params.uv_transformation.scale
-            new_scale = [scale * TransformContext.scale for scale in current_scale]
+            new_scale = [scale * scale_multiplier for scale in current_scale]
             modif_params.uv_transformation.scale = new_scale
             changes.append(f">>> 縮放: <{current_scale} => {new_scale}>")
 
-        if TransformContext.rotation != 0:
+        if rotation_offset != 0:
             current_rotation = modif_params.uv_transformation.rotation
-            new_rotation = (current_rotation + TransformContext.rotation) % 360
+            new_rotation = (current_rotation + rotation_offset) % 360
             modif_params.uv_transformation.rotation = new_rotation
             changes.append(f">>> 旋轉: <{current_rotation} => {new_rotation}>")
 
@@ -164,7 +165,7 @@ def create_handle_generator():
 
         return (False, "未知的 Generator 類型")
 
-    def apply(layer) -> list[str]:
+    def apply(layer, scale_multiplier: float, rotation_offset: float) -> list[str]:
         modif_params = layer.get_source().get_parameters()
         updated_params: dict[str, tuple[float, float]] = {}
 
@@ -174,9 +175,9 @@ def create_handle_generator():
 
             new_value = v
             if type(v) is int:
-                new_value = int(max(1, round(v * TransformContext.scale)))
+                new_value = int(max(1, round(v * scale_multiplier)))
             elif type(v) is float:
-                new_value = float(max(0.1, v * TransformContext.scale))
+                new_value = float(max(0.1, v * scale_multiplier))
 
             if new_value != v:
                 updated_params[k] = (v, new_value)
@@ -197,7 +198,7 @@ def create_handle_filter():
         # TODO: 過濾出名稱帶有 MatFinish 的 MatFinish 系列濾鏡
         return (False, "非 MatFinish 系列濾鏡")
 
-    def apply(layer) -> list[str]:
+    def apply(layer, scale_multiplier: float, rotation_offset: float) -> list[str]:
         # TODO: 將 MatFinish 系列濾鏡中的參數 "scale" 調整
         return []
 
@@ -205,13 +206,13 @@ def create_handle_filter():
 
 
 def create_handle_group():
-    def handler(layer: object, full_path: str, layer_type: str) -> None:
+    def handler(layer: object, full_path: str, ctx: TransformContext) -> None:
         if not layer.is_visible():
-            TransformContext.add_skip(full_path, layer_type, ["不可見的 Group Layer"])
+            ctx.add_skip(full_path, str(layer.get_type()), ["不可見的 Group Layer"])
             return
 
         for sub_layer in list(layer.sub_layers()):
-            process_layer(sub_layer, full_path)
+            process_layer(sub_layer, full_path, ctx)
 
     return handler
 
@@ -221,37 +222,36 @@ def create_handle_group():
 # -------------------------------------------------------------------------
 
 
-def create_handlers():
-    return {
-        sp.layerstack.NodeType.GroupLayer: create_handle_group(),
-        sp.layerstack.NodeType.GeneratorEffect: create_handle_generator(),
-        sp.layerstack.NodeType.FillLayer: create_handle_fill(),
-        sp.layerstack.NodeType.FillEffect: create_handle_fill(),
-        sp.layerstack.NodeType.FilterEffect: create_handle_filter(),
-    }
+Handlers = {
+    sp.layerstack.NodeType.GroupLayer: create_handle_group(),
+    sp.layerstack.NodeType.GeneratorEffect: create_handle_generator(),
+    sp.layerstack.NodeType.FillLayer: create_handle_fill(),
+    sp.layerstack.NodeType.FillEffect: create_handle_fill(),
+    sp.layerstack.NodeType.FilterEffect: create_handle_filter(),
+}
 
 
-def process_layer(layer, layer_path: str = ""):
+def process_layer(layer, layer_path: str, ctx: TransformContext) -> None:
     layer_name = str(layer.get_name())
     layer_type = layer.get_type()
     full_path = f"{layer_path} / {layer_name}" if layer_path else layer_name
 
-    handler = create_handlers().get(layer_type)
+    handler = Handlers.get(layer_type)
     if handler:
         try:
-            handler(layer, full_path, layer_type=str(layer_type))
+            handler(layer, full_path, ctx)
         except Exception as e:
-            TransformContext.add_error(full_path, str(layer_type), messages=[f"處理 {full_path} 時發生錯誤: {e}"])
+            ctx.add_error(full_path, str(layer_type), messages=[f"處理 {full_path} 時發生錯誤: {e}"])
     else:
-        TransformContext.add_skip(full_path, str(layer_type), messages=["非可處理圖層"])
+        ctx.add_skip(full_path, str(layer_type), messages=["非可處理圖層"])
 
     if hasattr(layer, "content_effects") and layer.content_effects():
         for effect in layer.content_effects():
-            process_layer(effect, f"{full_path} / ContentEffects")
+            process_layer(effect, f"{full_path} / ContentEffects", ctx)
 
     if hasattr(layer, "mask_effects") and layer.mask_effects():
         for effect in layer.mask_effects():
-            process_layer(effect, f"{full_path} / MaskEffects")
+            process_layer(effect, f"{full_path} / MaskEffects", ctx)
 
 
 # -------------------------------------------------------------------------
@@ -297,9 +297,7 @@ def main():
             dialog.deleteLater()
 
     # ------ 邏輯處理 ------
-    TransformContext.scale = result.scale
-    TransformContext.rotation = result.rotation
-    TransformContext.reset_changes()
+    ctx = create_context(result.scale, result.rotation)
 
     with sp.layerstack.ScopedModification("映射變換"):
         for texture_set in sp.textureset.all_texture_sets():
@@ -312,7 +310,7 @@ def main():
             try:
                 for index, stack in enumerate(set_stacks):
                     for layer in sp.layerstack.get_root_layer_nodes(stack):
-                        process_layer(layer, f"{set_name} / Stack{index}")
+                        process_layer(layer, f"{set_name} / Stack{index}", ctx)
 
             except Exception as e:
                 sp.logging.error(f"❌ 處理 Texture Set 時發生錯誤: {e}")
@@ -321,7 +319,7 @@ def main():
     result_dialog: Optional[transform_result_dialog.Dialog] = None
 
     try:
-        result_data = TransformContext.get_result()
+        result_data = ctx.get_result()
         result_dialog = transform_result_dialog.Dialog(result_data, sp.ui.get_main_window())
         result_dialog.exec_()
 
