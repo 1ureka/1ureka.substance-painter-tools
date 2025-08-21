@@ -250,9 +250,9 @@ def process_layer(layer, layer_path: str = ""):
         try:
             handler(layer, full_path)
         except Exception as e:
-            TransformContext.add_error(full_path, layer_type.__str__(), messages=[f"處理 {full_path} 時發生錯誤: {e}"])
+            TransformContext.add_error(full_path, str(layer_type), messages=[f"處理 {full_path} 時發生錯誤: {e}"])
     else:
-        TransformContext.add_skip(full_path, layer_type.__str__(), messages=["非可處理圖層"])
+        TransformContext.add_skip(full_path, str(layer_type), messages=["非可處理圖層"])
 
     if hasattr(layer, "content_effects") and layer.content_effects():
         for effect in layer.content_effects():
@@ -273,7 +273,7 @@ def main():
     if not sp.project.is_open():
         return sp.logging.warning("未開啟任何專案，請先開啟一個專案。")
 
-    active_set = sp.textureset.get_active_stack().name() or sp.textureset.get_active_stack().__str__()
+    active_set = sp.textureset.get_active_stack().name() or str(sp.textureset.get_active_stack())
     rows = [
         texture_sets_select.Row(texture_set.name(), texture_set.name() == active_set)
         for texture_set in sp.textureset.all_texture_sets()
