@@ -1,7 +1,7 @@
 import substance_painter as sp  # type: ignore
 from PySide2 import QtWidgets  # type: ignore
 
-from typing import Callable, Union, Optional, TypedDict, Literal
+from typing import Callable, Optional, TypedDict, Literal
 import importlib
 import ui.texture_sets_select as texture_sets_select
 import ui.transform_result_dialog as transform_result_dialog
@@ -46,28 +46,29 @@ class TransformContext:
         return this.changesByPath
 
 
-def validate_and_apply(
-    layer: object,
-    full_path: str,
-    layer_type: str,
-    is_valid: Union[Callable[[object], tuple[bool, str]], Callable[[object, str], tuple[bool, str]]],
+def create_handler(
+    is_valid: Callable[..., tuple[bool, str]],
+    is_multi_channel: Optional[Callable[[object], bool]],
     apply: Callable[[object], list[str]],
-    channels: Optional[list[str]] = None,
-) -> None:
-    if channels:
-        results = [is_valid(layer, ch) for ch in channels]
-        if all(ok for ok, _ in results):
-            TransformContext.add_success(full_path, layer_type, messages=apply(layer))
-        else:
-            reasons = ", ".join(reason for ok, reason in results if not ok)
-            TransformContext.add_skip(full_path, layer_type, messages=[reasons])
+):
+    def handler(layer: object, full_path: str, layer_type: str) -> None:
+        if is_multi_channel and is_multi_channel(layer):
+            results = [is_valid(layer, ch) for ch in layer.active_channels]
+            if all(ok for ok, _ in results):
+                TransformContext.add_success(full_path, layer_type + "(Split)", messages=apply(layer))
+            else:
+                TransformContext.add_skip(
+                    full_path, layer_type + "(Split)", messages=[reason for ok, reason in results if not ok]
+                )
 
-    else:
-        ok, reason = is_valid(layer)
-        if ok:
-            TransformContext.add_success(full_path, layer_type, messages=apply(layer))
         else:
-            TransformContext.add_skip(full_path, layer_type, messages=[reason])
+            ok, reason = is_valid(layer)
+            if ok:
+                TransformContext.add_success(full_path, layer_type, messages=apply(layer))
+            else:
+                TransformContext.add_skip(full_path, layer_type, messages=[reason])
+
+    return handler
 
 
 def create_handle_fill():
@@ -131,13 +132,7 @@ def create_handle_fill():
         layer.set_projection_parameters(modif_params)
         return changes
 
-    def main(layer, full_path: str) -> None:
-        if is_split_layer(layer):
-            validate_and_apply(layer, full_path, "Split Layer", is_valid, apply, layer.active_channels)
-        else:
-            validate_and_apply(layer, full_path, "Single Layer", is_valid, apply)
-
-    return main
+    return create_handler(is_valid=is_valid, is_multi_channel=is_split_layer, apply=apply)
 
 
 def create_handle_generator():
@@ -194,10 +189,7 @@ def create_handle_generator():
         else:
             return ["⚠️ 找不到可變換的 scale 參數"]
 
-    def main(layer, full_path: str) -> None:
-        validate_and_apply(layer, full_path, "Generator", is_valid, apply)
-
-    return main
+    return create_handler(is_valid=is_valid, is_multi_channel=None, apply=apply)
 
 
 def create_handle_filter():
@@ -209,46 +201,45 @@ def create_handle_filter():
         # TODO: 將 MatFinish 系列濾鏡中的參數 "scale" 調整
         return []
 
-    def main(layer, full_path: str) -> None:
-        validate_and_apply(layer, full_path, "Filter", is_valid, apply)
-
-    return main
+    return create_handler(is_valid=is_valid, is_multi_channel=None, apply=apply)
 
 
 def create_handle_group():
-    def main(layer, full_path: str) -> None:
+    def handler(layer: object, full_path: str, layer_type: str) -> None:
         if not layer.is_visible():
-            TransformContext.add_skip(full_path, layer.get_type().__str__(), ["不可見的 Group Layer"])
+            TransformContext.add_skip(full_path, layer_type, ["不可見的 Group Layer"])
             return
 
         for sub_layer in list(layer.sub_layers()):
             process_layer(sub_layer, full_path)
 
-    return main
+    return handler
 
 
 # -------------------------------------------------------------------------
 # 主要函數
 # -------------------------------------------------------------------------
 
-Handlers = {
-    sp.layerstack.NodeType.GroupLayer: create_handle_group(),
-    sp.layerstack.NodeType.GeneratorEffect: create_handle_generator(),
-    sp.layerstack.NodeType.FillLayer: create_handle_fill(),
-    sp.layerstack.NodeType.FillEffect: create_handle_fill(),
-    sp.layerstack.NodeType.FilterEffect: create_handle_filter(),
-}
+
+def create_handlers():
+    return {
+        sp.layerstack.NodeType.GroupLayer: create_handle_group(),
+        sp.layerstack.NodeType.GeneratorEffect: create_handle_generator(),
+        sp.layerstack.NodeType.FillLayer: create_handle_fill(),
+        sp.layerstack.NodeType.FillEffect: create_handle_fill(),
+        sp.layerstack.NodeType.FilterEffect: create_handle_filter(),
+    }
 
 
 def process_layer(layer, layer_path: str = ""):
-    layer_name = layer.get_name()
+    layer_name = str(layer.get_name())
     layer_type = layer.get_type()
     full_path = f"{layer_path} / {layer_name}" if layer_path else layer_name
 
-    handler = Handlers.get(layer_type)
+    handler = create_handlers().get(layer_type)
     if handler:
         try:
-            handler(layer, full_path)
+            handler(layer, full_path, layer_type=str(layer_type))
         except Exception as e:
             TransformContext.add_error(full_path, str(layer_type), messages=[f"處理 {full_path} 時發生錯誤: {e}"])
     else:
