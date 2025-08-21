@@ -69,7 +69,6 @@ class Dialog(QtWidgets.QDialog):
         self.table.setColumnCount(4)
         self.table.setHorizontalHeaderLabels(["Path", "LayerType", "Result", "Messages"])
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
-        self.table.setAlternatingRowColors(True)
 
         # 調整欄位寬度
         header = self.table.horizontalHeader()
