@@ -298,7 +298,7 @@ def main():
         result = dialog.result
 
     except Exception as e:
-        return sp.logging.info(f"❌ 處理對話框時發生錯誤: {e}")
+        return sp.logging.error(f"❌ 處理對話框時發生錯誤: {e}")
 
     finally:
         if dialog:
