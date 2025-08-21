@@ -1,30 +1,49 @@
 import substance_painter as sp  # type: ignore
 from PySide2 import QtWidgets  # type: ignore
 
-from typing import Callable, Union, Optional
+from typing import Callable, Union, Optional, TypedDict, Literal
 import importlib
 import ui.texture_sets_select as texture_sets_select
+import ui.transform_result_dialog as transform_result_dialog
 
 importlib.reload(texture_sets_select)
+importlib.reload(transform_result_dialog)
 
 # -------------------------------------------------------------------------
 # 工具函數
 # -------------------------------------------------------------------------
 
 
-def log_info(*messages: str) -> None:
-    for message in messages:
-        print(message)
-    print("-")
-
-
-def is_split_layer(layer) -> bool:
-    return hasattr(layer, "source_mode") and layer.source_mode == sp.source.SourceMode.Split
-
-
 class TransformContext:
     scale: float = 1.0
     rotation: float = 0.0
+
+    class PathChange(TypedDict):
+        type: Literal["skip", "error", "success"]
+        layer_type: str
+        messages: list[str]  # reasons, changes etc.
+
+    changesByPath: dict[str, PathChange] = {}
+
+    @classmethod
+    def add_success(this, path: str, layer_type: str, messages: list[str]) -> None:
+        this.changesByPath[path] = {"type": "success", "layer_type": layer_type, "messages": messages}
+
+    @classmethod
+    def add_skip(this, path: str, layer_type: str, messages: list[str]) -> None:
+        this.changesByPath[path] = {"type": "skip", "layer_type": layer_type, "messages": messages}
+
+    @classmethod
+    def add_error(this, path: str, layer_type: str, messages: list[str]) -> None:
+        this.changesByPath[path] = {"type": "error", "layer_type": layer_type, "messages": messages}
+
+    @classmethod
+    def reset_changes(this) -> None:
+        this.changesByPath.clear()
+
+    @classmethod
+    def get_result(this) -> dict[str, PathChange]:
+        return this.changesByPath
 
 
 def validate_and_apply(
@@ -38,20 +57,23 @@ def validate_and_apply(
     if channels:
         results = [is_valid(layer, ch) for ch in channels]
         if all(ok for ok, _ in results):
-            log_info(f"✅ {full_path} 是可變換的 {layer_type}", *apply(layer))
+            TransformContext.add_success(full_path, layer_type, messages=apply(layer))
         else:
             reasons = ", ".join(reason for ok, reason in results if not ok)
-            log_info(f"⚠️ {full_path} 是不可變換的 {layer_type}（{reasons}），跳過處理")
+            TransformContext.add_skip(full_path, layer_type, messages=[reasons])
 
     else:
         ok, reason = is_valid(layer)
         if ok:
-            log_info(f"✅ {full_path} 是可變換的 {layer_type}", *apply(layer))
+            TransformContext.add_success(full_path, layer_type, messages=apply(layer))
         else:
-            log_info(f"⚠️ {full_path} 是不可變換的 {layer_type}（{reason}），跳過處理")
+            TransformContext.add_skip(full_path, layer_type, messages=[reason])
 
 
 def create_handle_fill():
+    def is_split_layer(layer) -> bool:
+        return hasattr(layer, "source_mode") and layer.source_mode == sp.source.SourceMode.Split
+
     def is_valid_material(layer) -> tuple[bool, str]:
         if hasattr(layer.get_material_source(), "anchor"):
             return (False, "來源為 Anchor")
@@ -196,7 +218,8 @@ def create_handle_filter():
 def create_handle_group():
     def main(layer, full_path: str) -> None:
         if not layer.is_visible():
-            return log_info(f"⚠️ {full_path} 是不可見的 Group Layer，跳過處理其所有子圖層")
+            TransformContext.add_skip(full_path, layer.get_type().__str__(), ["不可見的 Group Layer"])
+            return
 
         for sub_layer in list(layer.sub_layers()):
             process_layer(sub_layer, full_path)
@@ -227,9 +250,9 @@ def process_layer(layer, layer_path: str = ""):
         try:
             handler(layer, full_path)
         except Exception as e:
-            log_info(f"❌ 處理 {full_path} 時發生錯誤: {e}")
+            TransformContext.add_error(full_path, layer_type.__str__(), messages=[f"處理 {full_path} 時發生錯誤: {e}"])
     else:
-        log_info(f"⚠️ {full_path} 是 {layer_type}，跳過處理")
+        TransformContext.add_skip(full_path, layer_type.__str__(), messages=["非可處理圖層"])
 
     if hasattr(layer, "content_effects") and layer.content_effects():
         for effect in layer.content_effects():
@@ -284,6 +307,7 @@ def main():
     # ------ 邏輯處理 ------
     TransformContext.scale = result.scale
     TransformContext.rotation = result.rotation
+    TransformContext.reset_changes()
 
     with sp.layerstack.ScopedModification("映射變換"):
         for texture_set in sp.textureset.all_texture_sets():
@@ -294,12 +318,24 @@ def main():
                 continue
 
             try:
-                log_info(f"🎨 處理 Texture Set: {set_name}")
                 for index, stack in enumerate(set_stacks):
                     for layer in sp.layerstack.get_root_layer_nodes(stack):
                         process_layer(layer, f"{set_name} / Stack{index}")
 
             except Exception as e:
-                log_info(f"❌ 處理 Texture Set 時發生錯誤: {e}")
+                sp.logging.error(f"❌ 處理 Texture Set 時發生錯誤: {e}")
 
-    sp.logging.info("映射調整完成")
+    # ------ 顯示結果對話框 ------
+    result_dialog: Optional[transform_result_dialog.Dialog] = None
+
+    try:
+        result_data = TransformContext.get_result()
+        result_dialog = transform_result_dialog.Dialog(result_data, sp.ui.get_main_window())
+        result_dialog.exec_()
+
+    except Exception as e:
+        sp.logging.error(f"❌ 顯示結果對話框時發生錯誤: {e}")
+
+    finally:
+        if result_dialog:
+            result_dialog.deleteLater()
