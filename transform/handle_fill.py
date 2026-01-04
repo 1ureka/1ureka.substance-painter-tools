@@ -22,7 +22,7 @@ class FillLayerHandler(LayerHandler):
     """
 
     allowed_types = {sp.layerstack.NodeType.FillLayer, sp.layerstack.NodeType.FillEffect}
-    allowed_mappings = {sp.layerstack.MappingType.UV, sp.layerstack.MappingType.Triplanar}
+    allowed_mappings = {sp.layerstack.ProjectionMode.UV, sp.layerstack.ProjectionMode.Triplanar}
 
     @staticmethod
     def _is_split_layer(layer: object) -> bool:
