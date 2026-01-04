@@ -1,4 +1,4 @@
-from typing import NamedTuple, Literal, Protocol
+from typing import Dict, NamedTuple, Tuple, Literal, Protocol
 
 
 class ValidationResult(NamedTuple):
@@ -107,27 +107,42 @@ class LayerHandler(Protocol):
     """
 
     @staticmethod
-    def validate_layer(layer: object) -> ValidationResult:
-        """
-        驗證圖層是否符合處理條件。
-
-        :param layer: Substance Painter 的圖層物件
-        :type layer: object
-        :return: 驗證結果，包含 accepted/skipped/rejected 狀態
-        :rtype: ValidationResult
-        """
-        ...
+    def validate_layer(layer: object) -> ValidationResult: ...
 
     @staticmethod
-    def process_layer(layer: object, args: ProcessArgs) -> ProcessResult:
-        """
-        對圖層執行變換處理。
+    def process_layer(layer: object, args: ProcessArgs) -> ProcessResult: ...
 
-        :param layer: Substance Painter 的圖層物件
-        :type layer: object
-        :param args: 處理參數，包含縮放和旋轉值
-        :type args: ProcessArgs
-        :return: 處理結果，包含 success/failure/no_change 狀態
-        :rtype: ProcessResult
-        """
-        ...
+
+class DispatchResult(NamedTuple):
+    """
+    經過所有圖層處理器的處理結果命名元組，包含處理狀態、標題和詳細訊息。
+
+    用於封裝單一圖層或效果圖層的處理結果，提供成功或失敗的狀態資訊。
+    這個結果會被用於 UI 顯示，透過樹狀結構呈現給使用者。
+
+    Attributes:
+        status (bool): 處理狀態， True 表示成功， False 表示失敗
+        title (str): 簡短的處理結果標題，例如「圖層 'Fill 1' 處理成功」
+        detail (str): 詳細的處理訊息，例如參數變更內容或錯誤原因
+    """
+
+    status: bool
+    title: str
+    detail: str
+
+    @classmethod
+    def success(cls, title: str, detail: str):
+        return cls(True, title, detail)
+
+    @classmethod
+    def fail(cls, title: str, detail: str):
+        return cls(False, title, detail)
+
+
+DispatchResults = Dict[Tuple[str, ...], DispatchResult]
+"""
+- 鍵 (Tuple[str, ...]): 圖層的完整路徑，以元組表示，例如 ('紋理集名稱', '堆疊 0', '群組1', '圖層名稱')
+- 值 (DispatchResult): 該圖層經過所有圖層處理器的處理結果
+
+此資料結構用於儲存整個專案中所有已處理圖層的結果，便於後續統計和 UI 顯示。
+"""
