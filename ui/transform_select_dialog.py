@@ -1,18 +1,16 @@
 from PySide2 import QtWidgets, QtCore  # type: ignore
-from typing import List, Optional
+from typing import List, Optional, TypedDict
 
 
-class Row:
-    def __init__(self, name: str, selected: Optional[bool] = True):
-        self.name = name
-        self.selected = selected
+class Row(TypedDict):
+    name: str
+    selected: bool
 
 
-class Result:
-    def __init__(self, scale: float, rotation: int, texture_sets: List[str]):
-        self.scale = scale
-        self.rotation = rotation
-        self.texture_sets = texture_sets
+class Result(TypedDict):
+    scale: float
+    rotation: int
+    texture_sets: List[str]
 
 
 class Dialog(QtWidgets.QDialog):
@@ -123,12 +121,12 @@ class Dialog(QtWidgets.QDialog):
         for i, row in enumerate(self.rows):
             # 選擇欄 (checkbox)
             checkbox = QtWidgets.QCheckBox()
-            checkbox.setChecked(row.selected)
+            checkbox.setChecked(row["selected"])
             checkbox.stateChanged.connect(lambda state, r=i: self.on_selection_changed(r, state))
             self.table.setCellWidget(i, 0, checkbox)
 
             # 紋理集名稱
-            item1 = QtWidgets.QTableWidgetItem(row.name)
+            item1 = QtWidgets.QTableWidgetItem(row["name"])
             item1.setFlags(item1.flags() & ~QtCore.Qt.ItemIsEditable)  # 禁止編輯
             self.table.setItem(i, 1, item1)
 
@@ -159,14 +157,34 @@ class Dialog(QtWidgets.QDialog):
         return fn
 
     def on_selection_changed(self, i, state):
-        self.rows[i].selected = state == QtCore.Qt.Checked
+        self.rows[i]["selected"] = state == QtCore.Qt.Checked
 
     def on_submit(self):
-        texture_sets = [row.name for row in self.rows if row.selected]
+        texture_sets = [row["name"] for row in self.rows if row["selected"]]
 
         if not texture_sets:
             QtWidgets.QMessageBox.warning(self, "警告", "請至少選擇一個紋理集進行映射變換。")
             return
 
-        self.result = Result(self.scale_spinbox.value(), self.rotation_spinbox.value(), texture_sets)
+        self.result: Result = {
+            "scale": self.scale_spinbox.value(),
+            "rotation": self.rotation_spinbox.value(),
+            "texture_sets": texture_sets,
+        }
+
         self.accept()
+
+
+def ask_transform_settings(rows: List[Row], parent=None) -> Optional[Result]:
+    dialog: Optional[Dialog] = None
+
+    try:
+        dialog = Dialog(rows, parent)
+
+        if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            return dialog.result
+    finally:
+        if dialog:
+            dialog.deleteLater()
+
+    return None
