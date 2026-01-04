@@ -2,6 +2,7 @@ import substance_painter as sp  # type: ignore
 from typing import Optional
 from transform.utils import LayerHandler, ValidationResult, ProcessResult, ProcessArgs
 
+
 class GeneratorLayerHandler(LayerHandler):
     allowed_types = {sp.layerstack.NodeType.GeneratorEffect}
     source_param_rules = {
@@ -15,11 +16,11 @@ class GeneratorLayerHandler(LayerHandler):
         layer_type = layer.get_type()
 
         if layer_type not in GeneratorLayerHandler.allowed_types:
-            return ValidationResult.skip(f'圖層類型 {layer_type} 不屬於產生器圖層')
+            return ValidationResult.skip(f"圖層類型 {layer_type} 不屬於產生器圖層")
 
         source = layer.get_source()
         if not source:
-            return ValidationResult.reject('產生器圖層沒有來源')
+            return ValidationResult.reject("產生器圖層沒有來源")
 
         keys = [key.lower() for key in source.get_parameters().keys()]
         suspect: Optional[tuple[str, int]] = None

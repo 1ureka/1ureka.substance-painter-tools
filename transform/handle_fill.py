@@ -1,6 +1,7 @@
 import substance_painter as sp  # type: ignore
 from transform.utils import LayerHandler, ValidationResult, ProcessResult, ProcessArgs
 
+
 class FillLayerHandler(LayerHandler):
     allowed_types = {sp.layerstack.NodeType.FillLayer, sp.layerstack.NodeType.FillEffect}
     allowed_mappings = {sp.layerstack.MappingType.UV, sp.layerstack.MappingType.Triplanar}
@@ -29,14 +30,14 @@ class FillLayerHandler(LayerHandler):
         layer_type = layer.get_type()
 
         if layer_type not in FillLayerHandler.allowed_types:
-            return ValidationResult.skip(f'圖層類型 {layer_type} 不屬於填充圖層')
+            return ValidationResult.skip(f"圖層類型 {layer_type} 不屬於填充圖層")
 
         if layer.get_projection_mode() not in FillLayerHandler.allowed_mappings:
-            return ValidationResult.reject('填充圖層不是使用 UV 或 Triplanar 映射')
+            return ValidationResult.reject("填充圖層不是使用 UV 或 Triplanar 映射")
 
         if layer.source_mode == sp.source.SourceMode.Material:
             if hasattr(layer.get_material_source(), "anchor"):
-              return ValidationResult.reject('填充圖層是錨點材質來源')
+                return ValidationResult.reject("填充圖層是錨點材質來源")
             return ValidationResult.ok()
 
         try:
@@ -44,11 +45,11 @@ class FillLayerHandler(LayerHandler):
                 sources = [layer.get_source(ch) for ch in layer.active_channels]
                 results = [FillLayerHandler._validate_source(layer, src) for src in sources]
 
-                if any(res.status == 'rejected' for res in results):
-                    reject_reasons = [res.message for res in results if res.status == 'rejected']
+                if any(res.status == "rejected" for res in results):
+                    reject_reasons = [res.message for res in results if res.status == "rejected"]
                     return ValidationResult.reject("; ".join(reject_reasons))
-                elif any(res.status == 'skipped' for res in results):
-                    skip_reasons = [res.message for res in results if res.status == 'skipped']
+                elif any(res.status == "skipped" for res in results):
+                    skip_reasons = [res.message for res in results if res.status == "skipped"]
                     return ValidationResult.skip("; ".join(skip_reasons))
                 else:
                     return ValidationResult.ok()
