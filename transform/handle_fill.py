@@ -42,7 +42,7 @@ class FillLayerHandler(LayerHandler):
         return hasattr(layer, "source_mode") and layer.source_mode == sp.source.SourceMode.Split
 
     @staticmethod
-    def _validate_source(layer: object, source: object) -> ValidationResult:
+    def _validate_source(source: object) -> ValidationResult:
         """
         驗證填充來源是否符合處理條件。
 
@@ -106,7 +106,11 @@ class FillLayerHandler(LayerHandler):
         try:
             if FillLayerHandler._is_split_layer(layer):
                 sources = [layer.get_source(ch) for ch in layer.active_channels]
-                results = [FillLayerHandler._validate_source(layer, src) for src in sources]
+
+                if not sources:
+                    return ValidationResult.reject("圖層沒有任何通道")
+
+                results = [FillLayerHandler._validate_source(source) for source in sources]
 
                 if any(res.status == "rejected" for res in results):
                     reject_reasons = [res.message for res in results if res.status == "rejected"]
@@ -118,7 +122,7 @@ class FillLayerHandler(LayerHandler):
                     return ValidationResult.ok()
             else:
                 source = layer.get_source()
-                return FillLayerHandler._validate_source(layer, source)
+                return FillLayerHandler._validate_source(source)
         except Exception as e:
             return ValidationResult.reject(f"驗證圖層來源時發生錯誤: {str(e)}")
 
