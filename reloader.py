@@ -4,16 +4,16 @@ import sys
 
 # 定義需要重載的模組順序（由底層到高層）
 MODULES_TO_RELOAD = [
-    "legacy.transform",
     "transform.utils",
     "transform.handle_fill",
     "transform.handle_generator",
     "transform",
     "randomize",
-    "ui.texture_sets_select",
+    "ui.transform_select_dialog",
     "ui.transform_result_dialog",
     "ui.radial_menu",
 ]
+
 
 def perform_reload():
     for module_name in MODULES_TO_RELOAD:

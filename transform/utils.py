@@ -1,7 +1,6 @@
 from typing import NamedTuple, Literal, Protocol
 
 
-# accepted 代表可以處理， skipped 代表不屬於此類型(給下一個 handler 驗證)， rejected 代表屬於此類型但應該跳過(不處理)
 class ValidationResult(NamedTuple):
     """
     圖層驗證結果的命名元組。

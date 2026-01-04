@@ -5,12 +5,13 @@ import reloader
 open_menu_action = None
 menu = None
 
+
 def start_plugin():
     global open_menu_action, menu
     reloader.perform_reload()
 
     from ui.radial_menu import RadialMenu
-    from legacy import transform
+    import transform
     import randomize
 
     def on_menu_option_selected(option):
@@ -18,7 +19,6 @@ def start_plugin():
             transform.main()
         elif option == "隨機化種子":
             randomize.main()
-
 
     parent = sp.ui.get_main_window()
     menu = RadialMenu(parent, ["映射變換", "隨機化種子"], on_menu_option_selected)
