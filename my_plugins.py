@@ -1,14 +1,27 @@
 from PySide2 import QtGui, QtWidgets  # type: ignore
 import substance_painter as sp  # type: ignore
-import reloader
+import sys
 
 open_menu_action = None
 menu = None
 
 
+def cleanup_modules():
+    """清理所有屬於此插件路徑下的模組快取"""
+    # TODO: 都改成在一個特定的包目錄下（例如 'my_plugin_folder'），因此該檔案要改名為 __init__.py 並放在 my_plugin_folder 目錄下
+    prefixes = ["ui", "transform", "randomize"]
+
+    # 找出所有符合前綴的模組 key
+    to_delete = [m for m in sys.modules if any(m.startswith(p) for p in prefixes)]
+
+    for m in to_delete:
+        del sys.modules[m]
+
+    sp.logging.info(f"已清理模組快取: {', '.join(to_delete)}")
+
+
 def start_plugin():
     global open_menu_action, menu
-    reloader.perform_reload()
 
     from ui.radial_menu import RadialMenu
     import transform
@@ -41,3 +54,5 @@ def close_plugin():
         menu.destroyed.connect(lambda: sp.logging.info("已正確釋放插件選單資源"))
         menu.deleteLater()
         menu = None
+
+    cleanup_modules()
