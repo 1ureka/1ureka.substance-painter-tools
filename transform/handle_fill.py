@@ -19,10 +19,12 @@ class FillLayerHandler(LayerHandler):
     Attributes:
         allowed_types (set): 允許處理的圖層類型集合
         allowed_mappings (set): 允許處理的映射類型集合
+        procedural_params (list): 3D 紋理的參數關鍵字列表
     """
 
     allowed_types = {sp.layerstack.NodeType.FillLayer, sp.layerstack.NodeType.FillEffect}
     allowed_mappings = {sp.layerstack.ProjectionMode.UV, sp.layerstack.ProjectionMode.Triplanar}
+    procedural_params = ["scale", "tile", "tiling", "pattern_scale"]
 
     @staticmethod
     def _is_split_layer(layer: object) -> bool:
@@ -62,10 +64,12 @@ class FillLayerHandler(LayerHandler):
         if hasattr(source, "anchor"):
             return ValidationResult.reject("填充來源為 Anchor")
 
-        if hasattr(source, "get_parameters"):
-            procedural_params = ["scale", "tile", "tiling", "pattern_scale"]
-            if any(param in source.get_parameters() for param in procedural_params) and "3D" in layer.get_name():
-                return ValidationResult.reject("填充來源為 3D Procedural Texture")
+        if hasattr(source, "get_parameters") and hasattr(source, "resource_id"):
+            is_3d_texture = "3d" in source.resource_id.name.lower()
+            param_matches = [param in source.get_parameters() for param in FillLayerHandler.procedural_params]
+
+            if is_3d_texture and any(param_matches):
+                return ValidationResult.reject("填充來源為 3D 生成紋理")
 
         return ValidationResult.ok()
 
