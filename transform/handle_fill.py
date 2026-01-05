@@ -19,10 +19,12 @@ class FillLayerHandler(LayerHandler):
     Attributes:
         allowed_types (set): 允許處理的圖層類型集合
         allowed_mappings (set): 允許處理的映射類型集合
+        procedural_params (list): 3D 紋理的參數關鍵字列表
     """
 
     allowed_types = {sp.layerstack.NodeType.FillLayer, sp.layerstack.NodeType.FillEffect}
     allowed_mappings = {sp.layerstack.ProjectionMode.UV, sp.layerstack.ProjectionMode.Triplanar}
+    procedural_params = ["scale", "tile", "tiling", "pattern_scale"]
 
     @staticmethod
     def _is_split_layer(layer: object) -> bool:
@@ -40,7 +42,7 @@ class FillLayerHandler(LayerHandler):
         return hasattr(layer, "source_mode") and layer.source_mode == sp.source.SourceMode.Split
 
     @staticmethod
-    def _validate_source(layer: object, source: object) -> ValidationResult:
+    def _validate_source(source: object) -> ValidationResult:
         """
         驗證填充來源是否符合處理條件。
 
@@ -62,10 +64,12 @@ class FillLayerHandler(LayerHandler):
         if hasattr(source, "anchor"):
             return ValidationResult.reject("填充來源為 Anchor")
 
-        if hasattr(source, "get_parameters"):
-            procedural_params = ["scale", "tile", "tiling", "pattern_scale"]
-            if any(param in source.get_parameters() for param in procedural_params) and "3D" in layer.get_name():
-                return ValidationResult.reject("填充來源為 3D Procedural Texture")
+        if hasattr(source, "get_parameters") and hasattr(source, "resource_id"):
+            is_3d_texture = "3d" in source.resource_id.name.lower()
+            param_matches = [param in source.get_parameters() for param in FillLayerHandler.procedural_params]
+
+            if is_3d_texture and any(param_matches):
+                return ValidationResult.reject("填充來源為 3D 生成紋理")
 
         return ValidationResult.ok()
 
@@ -102,7 +106,11 @@ class FillLayerHandler(LayerHandler):
         try:
             if FillLayerHandler._is_split_layer(layer):
                 sources = [layer.get_source(ch) for ch in layer.active_channels]
-                results = [FillLayerHandler._validate_source(layer, src) for src in sources]
+
+                if not sources:
+                    return ValidationResult.reject("圖層沒有任何通道")
+
+                results = [FillLayerHandler._validate_source(source) for source in sources]
 
                 if any(res.status == "rejected" for res in results):
                     reject_reasons = [res.message for res in results if res.status == "rejected"]
@@ -114,7 +122,7 @@ class FillLayerHandler(LayerHandler):
                     return ValidationResult.ok()
             else:
                 source = layer.get_source()
-                return FillLayerHandler._validate_source(layer, source)
+                return FillLayerHandler._validate_source(source)
         except Exception as e:
             return ValidationResult.reject(f"驗證圖層來源時發生錯誤: {str(e)}")
 
