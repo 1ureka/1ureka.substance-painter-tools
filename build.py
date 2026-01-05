@@ -15,7 +15,7 @@ def build_plugin():
     project_root = Path(__file__).parent
 
     # 目標目錄（Substance Painter 插件目錄）
-    target_base = Path(r"C:\\Users\\Summe\\Documents\\Adobe\\Adobe Substance 3D Painter\\python\\plugins")
+    target_base = Path("C:\\Users\\Summe\\Documents\\Adobe\\Adobe Substance 3D Painter\\python\\plugins")
 
     # 插件在目標目錄中的包名稱
     plugin_folder_name = "1ureka_tools"
