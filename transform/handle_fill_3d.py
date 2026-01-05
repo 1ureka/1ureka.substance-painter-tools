@@ -72,7 +72,7 @@ class Fill3DLayerHandler(LayerHandler):
         :rtype: ValidationResult
         """
 
-        if not (hasattr(source, "get_parameters") or hasattr(source, "resource_id")):
+        if not (hasattr(source, "get_parameters") and hasattr(source, "resource_id")):
             return ValidationResult.skip("來源缺少必要方法或屬性")
 
         source_params = source.get_parameters()
