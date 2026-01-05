@@ -78,7 +78,7 @@ class GeneratorLayerHandler(LayerHandler):
         - 整數參數: 乘以縮放倍數並四捨五入，最小值為 1
         - 浮點數參數: 乘以縮放倍數，最小值為 0.1
 
-        只處理縮放參數，不處理旋轉參數（生成器通常沒有旋轉參數）。
+        只處理縮放參數，不處理旋轉參數 (生成器通常沒有旋轉參數) 。
         如果沒有任何 scale 參數被修改，返回 no_change 結果。
 
         :param layer: Substance Painter 的圖層物件

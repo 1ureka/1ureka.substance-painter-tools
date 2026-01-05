@@ -158,7 +158,7 @@ class TreeLogDialog(QtWidgets.QDialog):
         show_success = self.filter_success.isChecked()
         show_fail = self.filter_fail.isChecked()
 
-        # 先收集所有項目到列表中（避免在遍歷時修改導致 iterator 失效）
+        # 先收集所有項目到列表中 (避免在遍歷時修改導致 iterator 失效)
         all_items = []
         iterator = QtWidgets.QTreeWidgetItemIterator(self.tree)
         while iterator.value():
@@ -196,7 +196,7 @@ def show_transform_results(results: DispatchResults, scale: float, rotation: flo
         dialog.exec_()  # 執行對話框 (此處會阻塞直到使用者關閉視窗)
 
     except Exception as e:
-        QtWidgets.QMessageBox.critical(parent, "錯誤", f"無法開啟結果檢視器：\n{str(e)}")
+        QtWidgets.QMessageBox.critical(parent, "錯誤", f"無法開啟結果檢視器: \n{str(e)}")
 
     finally:
         if dialog:

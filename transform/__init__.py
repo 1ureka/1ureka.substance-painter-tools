@@ -13,7 +13,7 @@ def dispatch_layer(layer: object, args: ProcessArgs) -> DispatchResult:
     處理單一圖層的縮放和旋轉變換。
 
     此函數會嘗試使用註冊的圖層處理器 (FillLayerHandler、GeneratorLayerHandler 等)
-    來驗證和處理指定的圖層。處理流程為：
+    來驗證和處理指定的圖層。處理流程為:
     1. 依序嘗試每個處理器驗證圖層
     2. 如果處理器跳過 (skipped) ，繼續嘗試下一個處理器
     3. 如果處理器拒絕 (rejected) ，返回失敗結果
@@ -61,7 +61,7 @@ def dispatch_layers(layers: List[object], base_path: List[str], args: ProcessArg
     """
     遞迴處理圖層列表，包括群組圖層及其子圖層。
 
-    此函數會遍歷圖層列表，對每個圖層執行以下操作：
+    此函數會遍歷圖層列表，對每個圖層執行以下操作:
     1. 如果是群組圖層且不可見，跳過該群組及其所有子圖層
     2. 如果是群組圖層且可見，遞迴處理其子圖層
     3. 如果是一般圖層，調用 dispatch_layer 處理
@@ -81,10 +81,10 @@ def dispatch_layers(layers: List[object], base_path: List[str], args: ProcessArg
     """
     results: DispatchResults = {}
 
-    for layer in layers:
+    for index, layer in enumerate(layers):
         is_group_layer = layer.get_type() == sp.layerstack.NodeType.GroupLayer
         layer_name = str(layer.get_name())
-        current_path = tuple(base_path + [layer_name])
+        current_path = tuple(base_path + [f"{layer_name} (圖層 {index})"])
 
         if is_group_layer and not layer.is_visible():
             title = f'圖層 "{layer_name}" 被跳過'
@@ -100,13 +100,13 @@ def dispatch_layers(layers: List[object], base_path: List[str], args: ProcessArg
             results[current_path] = dispatch_layer(layer, args)
 
         if hasattr(layer, "content_effects") and layer.content_effects():
-            for effect_layer in layer.content_effects():
-                effect_path = current_path + (f"{effect_layer.get_name()} (效果)",)
+            for i, effect_layer in enumerate(layer.content_effects()):
+                effect_path = current_path + (f"{effect_layer.get_name()} (效果 {i})",)
                 results[effect_path] = dispatch_layer(effect_layer, args)
 
         if hasattr(layer, "mask_effects") and layer.mask_effects():
-            for effect_layer in layer.mask_effects():
-                mask_path = current_path + (f"{effect_layer.get_name()} (遮罩)",)
+            for i, effect_layer in enumerate(layer.mask_effects()):
+                mask_path = current_path + (f"{effect_layer.get_name()} (遮罩 {i})",)
                 results[mask_path] = dispatch_layer(effect_layer, args)
 
     return results
@@ -137,7 +137,7 @@ def main() -> None:
     """
     映射變換工具的主要入口函數。
 
-    執行流程：
+    執行流程:
     1. 檢查是否有開啟的專案，若無則顯示警告並返回
     2. 獲取所有可用的紋理集並顯示選擇對話框
     3. 讓使用者選擇要處理的紋理集以及設定縮放和旋轉參數
