@@ -13,7 +13,7 @@ def prepare_modules():
     """
     配置插件環境變數並將插件路徑加入系統路徑。
 
-    確保 Python 解釋器能正確找到插件目錄下的自定義模組（如 ui, transform 等）。
+    確保 Python 解釋器能正確找到插件目錄下的自定義模組 (如 ui, transform 等) 。
     """
     if plugin_path not in sys.path:
         sys.path.append(plugin_path)
@@ -25,7 +25,7 @@ def cleanup_modules():
     """
     清理已載入的模組快取並還原系統路徑。
 
-    遍歷 sys.modules 並刪除指定的插件模組（ui, transform, randomize），
+    遍歷 sys.modules 並刪除指定的插件模組 (ui, transform, randomize)
     確保下次啟動插件時會重新讀取檔案而非使用記憶體中的舊版本。
     """
     prefixes = ["ui", "transform", "randomize"]
@@ -46,7 +46,7 @@ def start_plugin():
     """
     Substance Painter 插件啟動入口。
 
-    執行流程：
+    執行流程:
     1. 初始化模組路徑。
     2. 動態匯入 UI 與功能模組。
     3. 初始化徑向選單 (Radial Menu) 並綁定回呼函式。
@@ -80,7 +80,7 @@ def close_plugin():
     """
     Substance Painter 插件關閉與資源釋放。
 
-    執行流程：
+    執行流程:
     1. 從 Substance Painter UI 選單中移除動作物件。
     2. 銷毀徑向選單實例並標記資源釋放。
     3. 呼叫 cleanup_modules 清理 Python 環境變數。

@@ -7,11 +7,11 @@ class FillLayerHandler(LayerHandler):
     填充圖層和填充效果的處理器。
 
     負責處理 Substance Painter 中的 FillLayer 和 FillEffect 類型的圖層，
-    對其 UV 變換參數（縮放和旋轉）進行調整。
+    對其 UV 變換參數 (縮放和旋轉) 進行調整。
 
     只處理使用 UV 或 Triplanar 映射的圖層，並會自動排除:
     - Anchor 錦點圖層
-    - Project Resource （通常是烘焙結果）
+    - Project Resource  (通常是烘焙結果)
     - 3D Procedural Texture
 
     支援 Split Source 模式，可以處理多通道分離的填充來源。
@@ -31,7 +31,7 @@ class FillLayerHandler(LayerHandler):
         """
         檢查圖層是否使用 Split Source 模式。
 
-        Split Source 模式允許不同的通道（如 Base Color、Roughness 等）
+        Split Source 模式允許不同的通道 (如 Base Color、Roughness 等)
         使用不同的填充來源。
 
         :param layer: Substance Painter 的圖層物件

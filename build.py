@@ -6,15 +6,15 @@ def build_plugin():
     """
     建置並複製插件檔案到目標目錄。
 
-    此函數會：
-    1. 找出專案根目錄下所有的 .py 檔案（遞迴）
+    此函數會:
+    1. 找出專案根目錄下所有的 .py 檔案 (遞迴)
     2. 複製到目標目錄，並包裝在 1ureka_tools 子目錄中
     3. 保持原有的目錄結構
     """
-    # 專案根目錄（當前腳本所在目錄）
+    # 專案根目錄 (當前腳本所在目錄)
     project_root = Path(__file__).parent
 
-    # 目標目錄（Substance Painter 插件目錄）
+    # 目標目錄 (Substance Painter 插件目錄)
     target_base = Path("C:\\Users\\Summe\\Documents\\Adobe\\Adobe Substance 3D Painter\\python\\plugins")
 
     # 插件在目標目錄中的包名稱
