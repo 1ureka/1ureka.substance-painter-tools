@@ -81,10 +81,10 @@ def dispatch_layers(layers: List[object], base_path: List[str], args: ProcessArg
     """
     results: DispatchResults = {}
 
-    for layer in layers:
+    for index, layer in enumerate(layers):
         is_group_layer = layer.get_type() == sp.layerstack.NodeType.GroupLayer
         layer_name = str(layer.get_name())
-        current_path = tuple(base_path + [layer_name])
+        current_path = tuple(base_path + [f"{layer_name} (圖層 {index})"])
 
         if is_group_layer and not layer.is_visible():
             title = f'圖層 "{layer_name}" 被跳過'
@@ -100,13 +100,13 @@ def dispatch_layers(layers: List[object], base_path: List[str], args: ProcessArg
             results[current_path] = dispatch_layer(layer, args)
 
         if hasattr(layer, "content_effects") and layer.content_effects():
-            for effect_layer in layer.content_effects():
-                effect_path = current_path + (f"{effect_layer.get_name()} (效果)",)
+            for i, effect_layer in enumerate(layer.content_effects()):
+                effect_path = current_path + (f"{effect_layer.get_name()} (效果 {i})",)
                 results[effect_path] = dispatch_layer(effect_layer, args)
 
         if hasattr(layer, "mask_effects") and layer.mask_effects():
-            for effect_layer in layer.mask_effects():
-                mask_path = current_path + (f"{effect_layer.get_name()} (遮罩)",)
+            for i, effect_layer in enumerate(layer.mask_effects()):
+                mask_path = current_path + (f"{effect_layer.get_name()} (遮罩 {i})",)
                 results[mask_path] = dispatch_layer(effect_layer, args)
 
     return results
