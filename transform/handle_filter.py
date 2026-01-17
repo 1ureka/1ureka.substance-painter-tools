@@ -124,11 +124,6 @@ class FilterLayerHandler(LayerHandler):
             elif strategy == TransformStrategy.DIRECT_SCALE:
                 new_params[param_name] = old_val * args.scale
 
-            elif strategy == TransformStrategy.ROTATION_OFFSET:
-                # 假設 args.rotation 是角度 (0-360)，SP 參數通常是 0-1
-                rotation_offset = args.rotation / 360.0
-                new_params[param_name] = (old_val + rotation_offset) % 1.0
-
         if new_params:
             source.set_parameters(new_params)
             return ProcessResult.success(f"已更新 {res_id} 的參數: {list(new_params.keys())}")
