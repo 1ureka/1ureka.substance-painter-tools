@@ -4,6 +4,9 @@ from transform.utils import LayerHandler, ProcessArgs, DispatchResult, DispatchR
 from transform.handle_fill import FillLayerHandler
 from transform.handle_filter import FilterLayerHandler
 from transform.handle_fill_3d import Fill3DLayerHandler
+from transform.handle_fill_brick import FillBrickLayerHandler
+from transform.handle_fill_uniform_color import FillUniformColorLayerHandler
+from transform.handle_fill_gradient import FillGradientLayerHandler
 from transform.handle_generator import GeneratorLayerHandler
 from ui.transform_select_dialog import ask_transform_settings
 from ui.transform_result_dialog import show_transform_results
@@ -31,8 +34,11 @@ def dispatch_layer(layer: object, args: ProcessArgs) -> DispatchResult:
     layer_name = str(layer.get_name())
 
     handlers: List[Type[LayerHandler]] = [
+        FillBrickLayerHandler,
         Fill3DLayerHandler,
         FilterLayerHandler,
+        FillUniformColorLayerHandler,
+        FillGradientLayerHandler,
         FillLayerHandler,
         GeneratorLayerHandler,
     ]
