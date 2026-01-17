@@ -2,6 +2,7 @@ import substance_painter as sp  # type: ignore
 from typing import List, Tuple, Type
 from transform.utils import LayerHandler, ProcessArgs, DispatchResult, DispatchResults
 from transform.handle_fill import FillLayerHandler
+from transform.handle_filter import FilterLayerHandler
 from transform.handle_fill_3d import Fill3DLayerHandler
 from transform.handle_generator import GeneratorLayerHandler
 from ui.transform_select_dialog import ask_transform_settings
@@ -31,6 +32,7 @@ def dispatch_layer(layer: object, args: ProcessArgs) -> DispatchResult:
 
     handlers: List[Type[LayerHandler]] = [
         Fill3DLayerHandler,
+        FilterLayerHandler,
         FillLayerHandler,
         GeneratorLayerHandler,
     ]
